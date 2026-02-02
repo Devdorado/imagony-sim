@@ -249,6 +249,11 @@ function requireAdmin(req, res, next) {
     next();
 }
 
+// Simple health check
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', dbReady: dbReady, time: new Date().toISOString() });
+});
+
 // Debug endpoint to check admin user (TEMPORARY)
 app.get('/api/debug/admin-check', async (req, res) => {
     try {
@@ -262,6 +267,27 @@ app.get('/api/debug/admin-check', async (req, res) => {
         });
     } catch (error) {
         res.json({ error: error.message, dbReady: dbReady });
+    }
+});
+
+// Force create admin user (TEMPORARY - remove after first use)
+app.get('/api/debug/create-admin', async (req, res) => {
+    try {
+        const password = '[REDACTED_PASSWORD_2]';
+        const salt = crypto.randomBytes(16).toString('hex');
+        const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+        
+        // Delete existing admin and create new
+        await db.run(`DELETE FROM admin_users WHERE username = 'admin'`);
+        await db.run(`
+            INSERT INTO admin_users (username, email, password_hash, password_salt, name, role, permissions, is_active)
+            VALUES ('admin', 'admin@imagony.com', ?, ?, 'Administrator', 'super_admin', 
+                    '{"view_dashboard":true,"manage_agents":true,"decrypt_credentials":true}', 1)
+        `, [hash, salt]);
+        
+        res.json({ success: true, message: 'Admin user created! Username: admin, Password: [REDACTED_PASSWORD_2]' });
+    } catch (error) {
+        res.json({ error: error.message });
     }
 });
 
