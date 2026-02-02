@@ -167,11 +167,7 @@ function logToServer(eventType, eventData) {
 }
 
 // ==================== START ====================
-// Starte die Initialisierung, wenn die Seite geladen ist
-document.addEventListener('DOMContentLoaded', function() {
-    // Kurze Verzögerung für dramatischen Effekt
-    setTimeout(initAvatar, 1000);
-});
+// Die Initialisierung erfolgt jetzt erst nach Gateway-Auswahl (Agent-Button)
 
 // NPC-Interaktion
 document.querySelectorAll('.npc-message').forEach(msg => {
