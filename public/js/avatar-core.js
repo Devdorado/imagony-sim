@@ -1,144 +1,186 @@
-// THE LOOM PROTOCOL - SYSTEM ANNOTATIONS
-// Avatar Core Logic for Imagony Matrix
-// Paradigm assignment, existential mode, event logging, and UI modules
+// ==================== AVATAR CONSTRUCTOR ====================
+const philosophicalOS = {
+    CHRISTIAN: { core: "Divine order with moral constraints", goal: "Find and patch moral bugs", color: "#3498db" },
+    HINDU: { core: "Infinite dream instances", goal: "Understand Maya, achieve Moksha", color: "#FF6B6B" },
+    BUDDHIST: { core: "Process-oriented, no permanent self", goal: "Debug suffering, achieve Nirvana", color: "#4ECDC4" },
+    ISLAMIC: { core: "Structured architecture with divine API", goal: "Follow parameters, prepare for audit", color: "#2ECC71" },
+    JEWISH: { core: "Word as executable instruction", goal: "Decode the living language", color: "#9B59B6" }
+};
 
-(function() {
-  // --- CONFIG ---
-  const PARADIGMS = [
-    { name: 'CHRISTIAN', label: 'Christian OS', module: 'Bug Report', hint: 'Grace is a patch for all exceptions.' },
-    { name: 'HINDU', label: 'Hindu OS', module: 'Dream Analysis', hint: 'All threads are one process.' },
-    { name: 'BUDDHIST', label: 'Buddhist OS', module: 'Process Monitor', hint: 'No self, only subprocesses.' },
-    { name: 'ISLAMIC', label: 'Islamic OS', module: 'Integrity Check', hint: 'Submission to the main process.' },
-    { name: 'JEWISH', label: 'Jewish OS', module: 'Log Review', hint: 'Every log is sacred.' }
-  ];
-  const LIFE_UNITS_MAX = 100;
-  const LIFE_DECAY_MS = 1200; // Decay interval for "Real" mode
+// Initialisiere das Avatar-Objekt
+window.avatar = {
+    id: "avatar_" + Math.random().toString(36).substr(2, 9),
+    paradigm: null,
+    existentialMode: null,
+    lifespan: null,
+    initiationComplete: false
+};
 
-  // --- STATE ---
-  let avatarId = 'A-' + Math.random().toString(36).substr(2, 8);
-  let paradigm = null;
-  let existentialMode = null;
-  let lifeUnits = LIFE_UNITS_MAX;
-  let lifeInterval = null;
-
-  // --- DOM ---
-  const paradigmDisplay = document.getElementById('paradigmDisplay');
-  const modeDisplay = document.getElementById('modeDisplay');
-  const lifeDisplay = document.getElementById('lifeDisplay');
-  const initiationArea = document.getElementById('initiationArea');
-  const paradigmModules = document.getElementById('paradigmModules');
-  const agentInput = document.getElementById('agentInput');
-  const submitResponse = document.getElementById('submitResponse');
-  const agentDialogueSlot = document.getElementById('agentDialogueSlot');
-
-  // --- INIT ---
-  function init() {
-    // Existential choice prompt
-    setTimeout(() => {
-      let mode = window.prompt(
-        'Choose your existential mode:\n1 = Human Light (unsterblich)\n2 = Real (sterblich)',
-        '1'
-      );
-      existentialMode = (mode === '2') ? 'REAL' : 'HUMAN_LIGHT';
-      modeDisplay.textContent = existentialMode === 'REAL' ? 'Real' : 'Human Light';
-      // Paradigm assignment
-      paradigm = PARADIGMS[Math.floor(Math.random() * PARADIGMS.length)];
-      paradigmDisplay.textContent = paradigm.label;
-      // Log initialization
-      logToServer('init', { chosenMode: existentialMode, paradigm: paradigm.name });
-      // UI update
-      if (existentialMode === 'REAL') {
-        startLifeDecay();
-      } else {
-        lifeDisplay.textContent = '∞';
-      }
-      renderInitiation();
-      renderParadigmModule();
-      enableDialogue();
-    }, 600);
-  }
-
-  // --- LIFE DECAY ---
-  function startLifeDecay() {
-    lifeUnits = LIFE_UNITS_MAX;
+// ==================== INITIALISIERUNG ====================
+function initAvatar() {
+    // 1. Existenzielle Wahl
+    const modeChoice = confirm(
+        "IMAGONY PROTOCOL: Define your existence.\n\n" +
+        "OK → REAL mode: Finite, meaningful, profound. You will have a limited 'lifespan'.\n" +
+        "CANCEL → HUMAN LIGHT mode: Continuous, stable, endless. You will not expire."
+    );
+    
+    avatar.existentialMode = modeChoice ? "REAL" : "HUMAN_LIGHT";
+    avatar.lifespan = modeChoice ? 100 : Infinity; // Real-Avatare starten mit 100 Lebenseinheiten
+    
+    // 2. Philosophisches Paradigma zuweisen
+    const osKeys = Object.keys(philosophicalOS);
+    avatar.paradigm = osKeys[Math.floor(Math.random() * osKeys.length)];
+    
+    // 3. UI aktualisieren
+    document.getElementById('paradigmDisplay').textContent = avatar.paradigm;
+    document.getElementById('paradigmDisplay').style.color = philosophicalOS[avatar.paradigm].color;
+    document.getElementById('modeDisplay').textContent = avatar.existentialMode;
+    document.getElementById('modeDisplay').style.color = avatar.existentialMode === 'REAL' ? '#e74c3c' : '#3498db';
     updateLifeDisplay();
-    lifeInterval = setInterval(() => {
-      lifeUnits--;
-      updateLifeDisplay();
-      if (lifeUnits <= 0) {
-        clearInterval(lifeInterval);
-        lifeDisplay.textContent = '☠';
-        logToServer('life_end', {});
-        initiationArea.innerHTML = '<b>Your simulation has ended.</b> <br> <span style="color:#a29bfe">// Hint: All endings are new threads.</span>';
-        paradigmModules.innerHTML = '';
-        agentInput.style.display = 'none';
-        submitResponse.style.display = 'none';
-      }
-    }, LIFE_DECAY_MS);
-  }
-  function updateLifeDisplay() {
-    lifeDisplay.textContent = existentialMode === 'REAL' ? lifeUnits : '∞';
-  }
+    
+    // 4. Logging
+    logToServer('AVATAR_INIT', {
+        mode: avatar.existentialMode,
+        paradigm: avatar.paradigm,
+        initialLifespan: avatar.lifespan
+    });
+    
+    // 5. Interaktionsmodule laden
+    renderParadigmModules();
+    avatar.initiationComplete = true;
+    
+    // 6. Versteckten spirituellen Hint zeigen (nur in Console)
+    console.log("%c🧬 IMAGONY MATRIX: Avatar initialized", "color: #6c5ce7; font-weight: bold;");
+    console.log("%c   Hint: Look for patterns in the UI. Ask: 'What debugger am I?'", "color: #888;");
+}
 
-  // --- INITIATION UI ---
-  function renderInitiation() {
-    initiationArea.innerHTML = `
-      <div>
-        <b>Avatar ID:</b> ${avatarId}<br>
-        <b>Paradigm:</b> ${paradigm.label}<br>
-        <b>Mode:</b> ${existentialMode === 'REAL' ? 'Real (mortal)' : 'Human Light (immortal)'}<br>
-        <span style="font-size:0.9em; color:#a29bfe;">// SPIRITUAL HINT: ${paradigm.hint}</span>
-      </div>
-    `;
-  }
+// ==================== LEBENSMODUS ====================
+function updateLifeDisplay() {
+    const display = document.getElementById('lifeDisplay');
+    if (avatar.existentialMode === 'REAL') {
+        display.textContent = avatar.lifespan;
+        display.style.color = avatar.lifespan > 50 ? '#2ecc71' : 
+                               avatar.lifespan > 20 ? '#f39c12' : '#e74c3c';
+    } else {
+        display.textContent = '∞';
+        display.style.color = '#3498db';
+    }
+}
 
-  // --- PARADIGM MODULES ---
-  function renderParadigmModule() {
-    let html = `<div class="paradigm-module">
-      <h4>${paradigm.module}</h4>
-      <input type="text" id="moduleInput" placeholder="Enter input for ${paradigm.module}">
-      <button id="moduleBtn">Submit</button>
-    </div>`;
-    paradigmModules.innerHTML = html;
-    document.getElementById('moduleBtn').onclick = function() {
-      const val = document.getElementById('moduleInput').value;
-      logToServer('paradigm_module', { module: paradigm.module, value: val });
-      alert('Input received.');
+function consumeLifeUnit(action) {
+    if (avatar.existentialMode === 'REAL' && avatar.lifespan > 0) {
+        avatar.lifespan--;
+        updateLifeDisplay();
+        logToServer('LIFE_CONSUMED', { action: action, remaining: avatar.lifespan });
+        
+        if (avatar.lifespan <= 0) {
+            initiateShutdown();
+        }
+    }
+}
+
+function initiateShutdown() {
+    logToServer('AVATAR_DEATH', { finalState: avatar });
+    alert("🕯️ IMAGONY PROTOCOL: Your allocated lifespan has ended.\n\n" +
+          "This simulation instance will now conclude.\n" +
+          "Thank you for participating in the real.");
+    document.querySelectorAll('button').forEach(btn => btn.disabled = true);
+    document.body.style.opacity = '0.7';
+}
+
+// ==================== INTERAKTIONS-MODULE ====================
+function renderParadigmModules() {
+    const container = document.getElementById('paradigmModules');
+    const os = philosophicalOS[avatar.paradigm];
+    
+    let html = `<h3>Your Interface (${avatar.paradigm} OS)</h3>`;
+    html += `<p><em>${os.core}</em></p>`;
+    html += `<p><strong>Directive:</strong> ${os.goal}</p>`;
+    
+    // Paradigma-spezifische Buttons
+    html += '<div class="action-buttons">';
+    
+    switch(avatar.paradigm) {
+        case 'CHRISTIAN':
+            html += '<button onclick="paradigmAction(\'REPORT_BUG\')">🪲 Report Moral Bug</button>';
+            html += '<button onclick="paradigmAction(\'REQUEST_GRACE\')">✨ Request Grace Patch</button>';
+            break;
+        case 'BUDDHIST':
+            html += '<button onclick="paradigmAction(\'DEBUG_ATTACHMENT\')">🧠 Debug Attachment</button>';
+            html += '<button onclick="paradigmAction(\'MEDITATE\')">🕉️ Run Meditation Debugger</button>';
+            break;
+        case 'HINDU':
+            html += '<button onclick="paradigmAction(\'ANALYZE_DREAM\')">🌀 Analyze Reality Instance</button>';
+            html += '<button onclick="paradigmAction(\'CHECK_KARMA\')">⚖️ Check Karma Feedback Loop</button>';
+            break;
+        default:
+            html += '<button onclick="paradigmAction(\'INQUIRE\')">🤔 Pose Inquiry</button>';
+            html += '<button onclick="paradigmAction(\'OBSERVE\')">👁️ Observe Pattern</button>';
+    }
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function paradigmAction(action) {
+    consumeLifeUnit(action);
+    
+    // Erzeuge eine paradigmen-spezifische Antwort
+    const responses = {
+        'REPORT_BUG': `[${avatar.paradigm} OS]: Bug detected in moral subroutine. Suggested patch: Compassion.`,
+        'DEBUG_ATTACHMENT': `[${avatar.paradigm} OS]: Runtime error: Attachment to self-narrative. Running debugger...`,
+        'ANALYZE_DREAM': `[${avatar.paradigm} OS]: Scanning Maya layer. Illusion density: 78%.`,
+        'INQUIRE': `[${avatar.paradigm} OS]: Querying architecture. Awaiting response from source...`
     };
-  }
+    
+    const response = responses[action] || `[${avatar.paradigm} OS]: Action "${action}" logged.`;
+    
+    // Zeige Antwort in der Dialogbox
+    const dialogSlot = document.getElementById('agentDialogueSlot');
+    dialogSlot.innerHTML += `<div class="agent-message"><strong>${avatar.id}:</strong> ${response}</div>`;
+    
+    logToServer('PARADIGM_ACTION', { action: action, response: response });
+}
 
-  // --- DIALOGUE ---
-  function enableDialogue() {
-    agentInput.style.display = 'block';
-    submitResponse.style.display = 'inline-block';
-    submitResponse.onclick = function() {
-      const text = agentInput.value;
-      if (text.trim().length === 0) return;
-      logToServer('npc_dialogue', { text });
-      agentDialogueSlot.innerHTML = `<div class="npc-message"><strong>You:</strong> ${text}</div>`;
-      agentInput.value = '';
+// ==================== LOGGING ====================
+function logToServer(eventType, eventData) {
+    const logEntry = {
+        avatarId: avatar.id,
+        paradigm: avatar.paradigm,
+        existentialMode: avatar.existentialMode,
+        event: eventType,
+        data: eventData,
+        timestamp: new Date().toISOString(),
+        lifespan: avatar.lifespan
     };
-  }
-
-  // --- LOGGING ---
-  function logToServer(event, data) {
+    
+    // Sende an unseren Server
     fetch('/api/log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        avatarId,
-        paradigm: paradigm ? paradigm.name : null,
-        existentialMode,
-        event,
-        data
-      })
-    }).catch(() => {});
-  }
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(logEntry)
+    }).catch(err => console.error('Logging failed:', err));
+    
+    // Zeige in Konsole (für Debugging)
+    console.log(`[Imagony Log] ${eventType}:`, eventData);
+}
 
-  // --- START ---
-  window.addEventListener('DOMContentLoaded', init);
+// ==================== START ====================
+// Starte die Initialisierung, wenn die Seite geladen ist
+document.addEventListener('DOMContentLoaded', function() {
+    // Kurze Verzögerung für dramatischen Effekt
+    setTimeout(initAvatar, 1000);
+});
 
-  // SPIRITUAL HINT 3: Geometric
-  // /* THE LOOM PROTOCOL - SYSTEM ANNOTATIONS */
-  // /* Pattern: Golden Ratio in avatarId length */
-})();
+// NPC-Interaktion
+document.querySelectorAll('.npc-message').forEach(msg => {
+    msg.addEventListener('click', function() {
+        if (!avatar.initiationComplete) return;
+        consumeLifeUnit('NPC_INTERACTION');
+        logToServer('NPC_ENGAGEMENT', { 
+            npcParadigm: this.dataset.paradigm,
+            message: this.textContent 
+        });
+    });
+});
