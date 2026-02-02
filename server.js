@@ -462,6 +462,34 @@ app.get('/api/debug/create-admin', async (req, res) => {
     }
 });
 
+// Debug login via GET (TEMPORARY - for testing)
+app.get('/api/debug/test-login', async (req, res) => {
+    try {
+        const username = 'admin';
+        const password = '[REDACTED_PASSWORD_2]';
+        
+        const user = await db.get(`SELECT * FROM admin_users WHERE username = ? AND is_active = 1`, [username]);
+        if (!user) {
+            return res.json({ error: 'User not found', step: 1 });
+        }
+        
+        const passwordValid = verifyPassword(password, user.password_hash, user.password_salt);
+        if (!passwordValid) {
+            return res.json({ error: 'Password invalid', step: 2, hashLength: user.password_hash?.length });
+        }
+        
+        const token = crypto.randomBytes(32).toString('hex');
+        adminSessions.set(token, {
+            user: { id: user.id, username: user.username, email: user.email, role: user.role, permissions: user.permissions },
+            expires: Date.now() + (4 * 60 * 60 * 1000)
+        });
+        
+        res.json({ success: true, token, message: 'Login works via GET!' });
+    } catch (error) {
+        res.json({ error: error.message, stack: error.stack?.substring(0, 200) });
+    }
+});
+
 // Admin login
 app.post('/api/admin/login', async (req, res) => {
     const { username, password } = req.body;
