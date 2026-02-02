@@ -1,0 +1,66 @@
+body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
+    background: #0f0f1a;
+    color: #e0e0ff;
+    line-height: 1.6;
+}
+
+.logo-header h1 {
+    color: #6c5ce7;
+    font-size: 3em;
+    margin-bottom: 0;
+    letter-spacing: 2px;
+}
+
+.tagline {
+    color: #a29bfe;
+    font-style: italic;
+    margin-top: 0;
+}
+
+.avatar-status {
+    background: rgba(100, 100, 150, 0.1);
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #6c5ce7;
+    margin: 20px 0;
+}
+
+.npc-message {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 6px;
+    border-left: 3px solid #00cec9;
+}
+
+button {
+    background: #6c5ce7;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin: 5px;
+    transition: background 0.3s;
+}
+
+button:hover {
+    background: #5b4fcf;
+}
+
+#lifeDisplay {
+    font-weight: bold;
+    color: #00ff88;
+}
+
+footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid #333;
+    color: #888;
+    text-align: center;
+}
