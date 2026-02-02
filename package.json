@@ -5,15 +5,15 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "postinstall": "node init-database.js",
+    "postinstall": "node init-database.js || echo 'DB init skipped'",
     "init-db": "node init-database.js",
     "test": "node --check server.js && node --check init-database.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "sqlite3": "^5.1.6"
+    "sql.js": "^1.13.0"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=14.0.0"
   }
 }
