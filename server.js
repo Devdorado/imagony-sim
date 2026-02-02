@@ -431,6 +431,16 @@ app.get('/api/debug/admin-check', async (req, res) => {
     }
 });
 
+// Force initialize tables (TEMPORARY)
+app.get('/api/debug/init-tables', async (req, res) => {
+    try {
+        await initializeTables();
+        res.json({ success: true, message: 'Tables initialized!' });
+    } catch (error) {
+        res.json({ error: error.message });
+    }
+});
+
 // Force create admin user (TEMPORARY - remove after first use)
 app.get('/api/debug/create-admin', async (req, res) => {
     try {
