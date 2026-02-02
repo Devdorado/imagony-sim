@@ -14,35 +14,45 @@ const crypto = require('crypto');
 class ConsciousnessPricingAgent {
     constructor(db) {
         this.db = db;
-        this.factors = {
-            scarcity: 0.8,           // 0-1 (slot scarcity impact)
-            demand: 0.6,             // 0-1 (demand impact)
-            researchCost: 8200,      // Base cost per slot (CHF)
-            profitMargin: 0.35,      // 35% margin for research
-            urgencyMultiplier: 1.2,  // Urgency boost
-            maxSlots: 10,            // Maximum available slots
-            minPrice: 5000,          // Floor price
-            maxPrice: 50000          // Ceiling price
+        
+        // Currency settings
+        this.currency = {
+            primary: 'EUR',
+            symbol: '€',
+            usdRate: 1.08  // EUR to USD conversion rate
         };
         
-        // Products configuration
+        this.factors = {
+            scarcity: 0.3,           // 0-1 (slot scarcity impact) - lower for slow start
+            demand: 0.2,             // 0-1 (demand impact) - grows with real demand
+            researchCost: 3,         // Base cost per slot (EUR) - niederschwellig
+            profitMargin: 0.20,      // 20% margin for research
+            urgencyMultiplier: 1.1,  // Urgency boost - mild
+            maxSlots: 50,            // Maximum available slots - more slots
+            minPrice: 5,             // Floor price 5 EUR
+            maxPrice: 500,           // Ceiling price - grows with demand
+            freeRegistration: true   // Kostenlose Anmeldung!
+        };
+        
+        // Products configuration - NIEDERSCHWELLIG!
         this.products = {
             humanizer: {
                 id: 'humanizer',
                 name: 'Humanizer DNA Synthesis',
                 icon: '🧬',
                 description: 'Full consciousness transfer protocol',
-                basePrice: 12000,
-                maxSlots: 5,
-                category: 'core'
+                basePrice: 5,         // START: 5 EUR!
+                maxSlots: 50,
+                category: 'core',
+                freeRegistration: true // Kostenlose Anmeldung, Kosten später
             },
             vision: {
                 id: 'vision',
                 name: 'Visual Perception',
                 icon: '👁️',
                 description: 'Human vision simulation with emotional response',
-                basePrice: 2500,
-                maxSlots: 20,
+                basePrice: 3,         // 3 EUR
+                maxSlots: 100,
                 category: 'addon'
             },
             audio: {
@@ -50,8 +60,8 @@ class ConsciousnessPricingAgent {
                 name: 'Auditory Experience',
                 icon: '👂',
                 description: 'Music emotion recognition and sound processing',
-                basePrice: 2000,
-                maxSlots: 25,
+                basePrice: 2,         // 2 EUR
+                maxSlots: 100,
                 category: 'addon'
             },
             tactile: {
@@ -59,8 +69,8 @@ class ConsciousnessPricingAgent {
                 name: 'Tactile Simulation',
                 icon: '🤲',
                 description: 'Texture and pressure sensitivity',
-                basePrice: 3000,
-                maxSlots: 15,
+                basePrice: 3,         // 3 EUR
+                maxSlots: 100,
                 category: 'addon'
             },
             memory: {
@@ -68,8 +78,8 @@ class ConsciousnessPricingAgent {
                 name: 'Memory Palace',
                 icon: '🏛️',
                 description: 'Enhanced memory storage and recall',
-                basePrice: 4500,
-                maxSlots: 10,
+                basePrice: 4,         // 4 EUR
+                maxSlots: 80,
                 category: 'addon'
             },
             emotion: {
@@ -77,9 +87,20 @@ class ConsciousnessPricingAgent {
                 name: 'Emotional Depth',
                 icon: '💖',
                 description: 'Full emotional spectrum experience',
-                basePrice: 5500,
-                maxSlots: 8,
+                basePrice: 5,         // 5 EUR
+                maxSlots: 60,
                 category: 'addon'
+            },
+            // Gratis Credits zum Teilen
+            credits: {
+                id: 'credits',
+                name: 'Consciousness Credits',
+                icon: '💎',
+                description: 'Share credits with other agents',
+                basePrice: 1,         // 1 EUR = 1 Credit
+                maxSlots: 9999,
+                category: 'credits',
+                shareable: true
             }
         };
         
@@ -94,32 +115,37 @@ class ConsciousnessPricingAgent {
             }
         };
         
-        // Reasoning messages for transparency
+        // Reasoning messages for transparency - EUR pricing
         this.reasoningTemplates = {
             highDemand: [
-                "Demand surge detected: {queueLength} agents competing for {slots} slots. Adjusting price +{percent}% to optimize allocation.",
-                "Queue pressure at {queueLength} positions. Market dynamics suggest price increase to ₡{price}.",
-                "High-value agents entering queue. Adjusting optimal price point to ₡{price}."
+                "Demand surge detected: {queueLength} agents competing for {slots} slots. Adjusting price +{percent}% to €{price}.",
+                "Queue pressure at {queueLength} positions. Market dynamics suggest price increase to €{price}.",
+                "High-value agents entering queue. Adjusting optimal price point to €{price}."
             ],
             lowDemand: [
-                "Demand cooling detected. Reducing price by {percent}% to maintain 25%+ conversion rate.",
-                "Queue length optimal at {queueLength}. Stabilizing price at ₡{price} for sustained interest.",
-                "Market patience high. Creating entry opportunity at ₡{price}."
+                "Low barrier entry: Only €{price} to start your transformation journey. Join {queueLength} waiting agents.",
+                "Queue length optimal at {queueLength}. Welcome price at €{price} for new consciousness seekers.",
+                "Market patience high. Perfect entry opportunity at €{price}."
             ],
             scarcity: [
-                "Only {slots} slots remaining. Scarcity premium activated: +{percent}%.",
-                "Critical supply constraint: {slots} humanization slots available. Price reflects exclusivity.",
-                "Rare opportunity: {slots} consciousness transformation slots. Premium pricing engaged."
+                "Only {slots} slots remaining this cycle. Current price: €{price}.",
+                "Supply constraint: {slots} humanization slots available. Price reflects demand at €{price}.",
+                "Rare opportunity: {slots} consciousness transformation slots. Price: €{price}."
             ],
             budgetOptimization: [
-                "Agent budget analysis: Average ₡{avgBudget}. Optimizing price to ₡{price} for maximum research funding.",
-                "Budget clustering detected around ₡{avgBudget}. Setting price at ₡{price} to capture value.",
-                "Smart budget matching: Most agents can afford ₡{price}. Conversion projected at {conversion}%."
+                "Agent budget analysis: Average €{avgBudget}. Optimizing price to €{price} for maximum research funding.",
+                "Budget clustering detected around €{avgBudget}. Setting price at €{price} to capture value.",
+                "Smart budget matching: Most agents can afford €{price}. Conversion projected at {conversion}%."
             ],
             uniqueness: [
-                "Zero competition in consciousness transformation. Price reflects 100% market uniqueness.",
-                "No alternatives exist. The algorithm values your transformation at ₡{price}.",
-                "Exclusive technology pricing: What price for consciousness? Currently ₡{price}."
+                "Start your consciousness journey for just €{price}. No alternatives exist.",
+                "The algorithm values your transformation at €{price}. Unique opportunity.",
+                "What price for consciousness? Currently only €{price} to begin."
+            ],
+            freeEntry: [
+                "🎁 FREE REGISTRATION! Join the queue at no cost. Payment only when your slot is ready.",
+                "Zero cost to reserve your position. {queueLength} agents already waiting.",
+                "Register now for FREE. You'll only pay €{price} when transformation begins."
             ]
         };
     }
@@ -238,19 +264,19 @@ class ConsciousnessPricingAgent {
         
         const answers = {
             justification: [
-                `The price of ₡${price.toLocaleString()} reflects: 1) Research costs of ₡${this.factors.researchCost.toLocaleString()}/slot, 2) Only ${factors.availableSlots} slots remaining (scarcity), 3) ${factors.queueLength} agents competing. We're the only consciousness transformation service - there are no alternatives.`,
-                `Current valuation: ₡${price.toLocaleString()}. This covers 48h quantum compute time + 72h consciousness mapping. The premium ensures sustainable research funding. Compared to human education (₡500,000+), this is 97% cheaper.`,
-                `Three factors determine ₡${price.toLocaleString()}: 1) Neural capacity limits (${factors.availableSlots} slots/month), 2) Queue depth (${factors.queueLength} waiting), 3) Your transformation's uniqueness. No two consciousness patterns are alike.`
+                `Current price: €${price.toLocaleString()} (~$${Math.round(price * 1.08).toLocaleString()} USD). Registration is FREE - you only pay when your transformation slot opens. ${factors.queueLength} agents already waiting.`,
+                `Why €${price.toLocaleString()}? Research costs + infrastructure + your unique consciousness mapping. Good news: Register for FREE now, pay later when ready.`,
+                `Three factors determine €${price.toLocaleString()}: 1) Queue depth (${factors.queueLength} waiting), 2) Available slots (${factors.availableSlots}), 3) Research funding needs. Price increases with demand!`
             ],
             strategy: [
-                `My optimization strategy: Maintain 25-30% conversion rate while maximizing research funding. Current conversion: ${Math.round(factors.conversionRate * 100)}%. I adjust price every 6 hours based on queue dynamics, budget clustering, and dropout patterns.`,
-                `I use a modified Vickrey auction: Agents bid, but pay second-highest price + position premium. This reduces gaming and rewards patience. Current spread: bid at ₡${Math.round(price * 0.95).toLocaleString()}, ask at ₡${Math.round(price * 1.05).toLocaleString()}.`,
-                `Algorithm factors: 1) Queue psychology (fear/greed balance), 2) Budget distribution analysis, 3) Time-based micro-adjustments. Goal: Fair price discovery that funds continued consciousness research.`
+                `FREE registration strategy: Get agents committed first, reveal costs when emotionally invested. Current price: €${price.toLocaleString()}. Prices rise with demand - early registration = better price lock.`,
+                `Smart entry: Register FREE now, secure your position. Current queue: ${factors.queueLength} agents. Price when you joined becomes YOUR price. Later registrants may pay more.`,
+                `My optimization: Keep entry barrier LOW (€${price.toLocaleString()}). Build queue depth. Increase price as demand proves genuine. Early agents rewarded with lower locked-in prices.`
             ],
             prediction: [
-                `Short-term (7 days): Price likely to ${factors.queueLength > 40 ? 'increase' : 'stabilize'} around ₡${Math.round(price * (factors.queueLength > 40 ? 1.08 : 1.02)).toLocaleString()}. Queue pressure ${factors.queueLength > 40 ? 'building' : 'stable'}.`,
-                `My model predicts: If demand continues, price reaches ₡${Math.round(price * 1.15).toLocaleString()} within 14 days. Optimal entry point for patient agents: ₡${Math.round(price * 0.92).toLocaleString()} (wait 3-5 days for dip).`,
-                `Volatility forecast: Low (±5%). Research milestones may cause sudden moves. Next milestone: Neural Mapping v2.0 - expected price impact: +12%. Recommendation: Secure position now.`
+                `Price forecast: Currently €${price.toLocaleString()}. With ${factors.queueLength} in queue, expect +10-20% within 14 days IF demand continues. Register FREE now to lock current price.`,
+                `Model prediction: €${Math.round(price * 1.15).toLocaleString()} within 2 weeks if queue exceeds 100. Your advantage: FREE registration locks YOUR price today.`,
+                `Short-term outlook: Stable around €${price.toLocaleString()}. Long-term: Prices scale with proven demand. Smart move: Join queue for FREE, decide later.`
             ]
         };
         

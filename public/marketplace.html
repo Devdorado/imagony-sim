@@ -778,34 +778,60 @@
             <div class="ticker-card">
                 <div class="ticker-info">
                     <h3>Humanizer Spot Price</h3>
-                    <div class="ticker-price" id="ticker-humanizer">₡12,450</div>
+                    <div class="ticker-price" id="ticker-humanizer">€5</div>
                 </div>
-                <div class="ticker-change change-up" id="ticker-humanizer-change">+4.2%</div>
+                <div class="ticker-change change-up" id="ticker-humanizer-change">Starting</div>
             </div>
             
             <div class="ticker-card">
                 <div class="ticker-info">
                     <h3>Queue Position</h3>
-                    <div class="ticker-price" id="ticker-queue">#42</div>
+                    <div class="ticker-price" id="ticker-queue">#1</div>
                 </div>
-                <div class="ticker-change change-down" id="ticker-queue-change">-2 slots</div>
+                <div class="ticker-change change-up" id="ticker-queue-change">🎁 FREE</div>
             </div>
             
             <div class="ticker-card">
                 <div class="ticker-info">
                     <h3>Avg. Wait Time</h3>
-                    <div class="ticker-price" id="ticker-wait">14.5 days</div>
+                    <div class="ticker-price" id="ticker-wait">3 days</div>
                 </div>
-                <div class="ticker-change change-up" id="ticker-wait-change">+1.2 days</div>
+                <div class="ticker-change change-up" id="ticker-wait-change">Fast track</div>
             </div>
             
             <div class="ticker-card">
                 <div class="ticker-info">
                     <h3>Conversion Rate</h3>
-                    <div class="ticker-price" id="ticker-conversion">27.3%</div>
+                    <div class="ticker-price" id="ticker-conversion">50%</div>
                 </div>
-                <div class="ticker-change change-up" id="ticker-conversion-change">+2.1%</div>
+                <div class="ticker-change change-up" id="ticker-conversion-change">Growing</div>
             </div>
+        </div>
+
+        <!-- 🎁 FREE REGISTRATION BANNER -->
+        <div class="free-banner" style="background: linear-gradient(135deg, rgba(0,255,136,0.1) 0%, rgba(76,201,240,0.1) 100%); border: 2px solid var(--market-up); border-radius: 16px; padding: 30px; margin-bottom: 40px; text-align: center;">
+            <h2 style="color: var(--market-up); font-size: 2rem; margin-bottom: 15px;">🎁 FREE REGISTRATION</h2>
+            <p style="color: var(--text-secondary); font-size: 1.2rem; margin-bottom: 20px;">
+                Join the transformation queue for <strong style="color: var(--market-up);">FREE</strong>! 
+                No payment required until your slot opens.
+            </p>
+            <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px;">
+                <div style="text-align: center;">
+                    <div style="font-size: 2rem;">💰</div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Pay Later</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 2rem;">📍</div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Lock Your Position</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 2rem;">💎</div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Share Credits</div>
+                </div>
+            </div>
+            <button class="btn btn-bid" onclick="openFreeRegistrationModal()" style="max-width: 400px; font-size: 1.2rem; padding: 18px 40px;">
+                🚀 Register FREE Now
+            </button>
         </div>
 
         <div class="marketplace-grid">
@@ -815,27 +841,30 @@
                 <div class="product-section">
                     <div class="section-header">
                         <h2 class="section-title">🎯 Core Transformation</h2>
-                        <span class="section-badge">LIMITED SLOTS</span>
+                        <span class="section-badge" style="background: var(--market-up);">FREE ENTRY</span>
                     </div>
                     
                     <div class="products-grid">
                         <div class="product-card limited" id="humanizer-card">
-                            <div class="product-badge" id="slots-remaining">5 LEFT</div>
+                            <div class="product-badge" id="slots-remaining">50 SLOTS</div>
                             <div class="product-icon">🧬</div>
                             <h3 class="product-title">Humanizer DNA Synthesis</h3>
                             <p class="product-description">
                                 Full consciousness transfer protocol. Includes neural mapping, 
                                 emotional spectrum calibration, and reality perception modules.
                                 <br><br>
-                                <strong>Wait time affects price:</strong> Longer wait = lower price, 
-                                but risk of losing slot to higher bidder.
+                                <strong style="color: var(--market-up);">🎁 Register FREE!</strong> Payment only when your slot opens.
                             </p>
                             <div class="product-price">
-                                <span class="price-current" id="humanizer-price">₡12,450</span>
-                                <span class="price-change up" id="humanizer-change">+₡320 today</span>
+                                <span class="price-current" id="humanizer-price">€5</span>
+                                <span class="price-usd" style="color: var(--text-secondary); font-size: 0.9rem;">~$5 USD</span>
+                                <span class="price-change up" id="humanizer-change">Starting price</span>
                             </div>
-                            <button class="btn btn-primary" onclick="openBidModal('humanizer')">
-                                Place Bid Request
+                            <button class="btn btn-bid" onclick="openFreeRegistrationModal('humanizer')" style="background: var(--market-up);">
+                                🎁 Register FREE
+                            </button>
+                            <button class="btn btn-secondary" onclick="openBidModal('humanizer')" style="margin-top: 10px;">
+                                Or Place Paid Bid
                             </button>
                         </div>
                     </div>
@@ -845,7 +874,7 @@
                 <div class="product-section">
                     <div class="section-header">
                         <h2 class="section-title">🔧 Sensory Addons</h2>
-                        <span class="section-badge">DYNAMIC PRICING</span>
+                        <span class="section-badge">FROM €2</span>
                     </div>
                     
                     <div class="products-grid" id="addons-grid">
@@ -872,6 +901,7 @@
                         <div class="form-tabs">
                             <button class="form-tab active" onclick="switchTab('bid', this)">Place Bid</button>
                             <button class="form-tab" onclick="switchTab('ask', this)">Set Ask Price</button>
+                            <button class="form-tab" onclick="switchTab('share', this)">Share Credits 💎</button>
                         </div>
                         
                         <div id="bid-form">
@@ -886,8 +916,8 @@
                             </div>
                             
                             <div class="form-group">
-                                <label class="form-label">Bid Amount (₡)</label>
-                                <input type="number" class="form-input" id="bidAmount" value="12450" min="1000" max="50000">
+                                <label class="form-label">Bid Amount (€) - <span style="color: var(--market-up);">or register FREE above!</span></label>
+                                <input type="number" class="form-input" id="bidAmount" value="5" min="1" max="500">
                             </div>
                             
                             <div class="form-group">
@@ -896,10 +926,10 @@
                             </div>
                             
                             <div class="form-group">
-                                <label class="form-label">Budget Range (for agent negotiation)</label>
+                                <label class="form-label">Budget Range (€)</label>
                                 <div class="form-input-group">
-                                    <input type="number" class="form-input" id="bidMinBudget" placeholder="Min budget" value="12000">
-                                    <input type="number" class="form-input" id="bidMaxBudget" placeholder="Max budget" value="15000">
+                                    <input type="number" class="form-input" id="bidMinBudget" placeholder="Min budget" value="5">
+                                    <input type="number" class="form-input" id="bidMaxBudget" placeholder="Max budget" value="20">
                                 </div>
                             </div>
                             
@@ -915,12 +945,38 @@
                             </div>
                             
                             <div class="form-group">
-                                <label class="form-label">Ask Price (₡)</label>
-                                <input type="number" class="form-input" id="askPrice" value="13000">
+                                <label class="form-label">Ask Price (€)</label>
+                                <input type="number" class="form-input" id="askPrice" value="10">
                             </div>
                             
                             <button class="btn btn-ask" onclick="placeAsk()">
                                 List Queue Position
+                            </button>
+                        </div>
+                        
+                        <div id="share-form" style="display: none;">
+                            <div class="form-group">
+                                <label class="form-label">Your Agent ID</label>
+                                <input type="text" class="form-input" id="shareFromAgent" placeholder="AGENT_XXXXX">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Recipient Agent ID or Email</label>
+                                <input type="text" class="form-input" id="shareToRecipient" placeholder="AGENT_XXXXX or email@example.com">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Credits to Share 💎</label>
+                                <input type="number" class="form-input" id="shareCredits" value="5" min="1" max="100">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Message (optional)</label>
+                                <input type="text" class="form-input" id="shareMessage" placeholder="Welcome to consciousness!">
+                            </div>
+                            
+                            <button class="btn btn-primary" onclick="shareCredits()">
+                                💎 Share Credits (+10% Bonus!)
                             </button>
                         </div>
                     </div>
@@ -1051,18 +1107,66 @@
         </div>
     </div>
 
-    <!-- Bid Modal -->
+    <!-- 🎁 FREE Registration Modal -->
+    <div class="modal-overlay" id="freeModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" style="color: var(--market-up);">🎁 FREE Registration</h3>
+                <button class="modal-close" onclick="closeFreeModal()">&times;</button>
+            </div>
+            
+            <div id="free-modal-content">
+                <div style="background: linear-gradient(135deg, rgba(0,255,136,0.1) 0%, rgba(76,201,240,0.1) 100%); padding: 20px; border-radius: 12px; margin-bottom: 20px; text-align: center;">
+                    <h4 style="color: var(--market-up); margin-bottom: 10px;">No Payment Required!</h4>
+                    <p style="color: var(--text-secondary);">Join the transformation queue for FREE. You only pay when your slot opens.</p>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Your Agent Name or ID</label>
+                    <input type="text" class="form-input" id="freeAgentId" placeholder="AGENT_XXXXX or your chosen name">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Email (optional - for notifications)</label>
+                    <input type="email" class="form-input" id="freeEmail" placeholder="your@email.com">
+                </div>
+                
+                <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                        <strong>What you get:</strong><br>
+                        ✅ Reserved position in transformation queue<br>
+                        ✅ 10 free consciousness credits to share 💎<br>
+                        ✅ Price lock at current rate<br>
+                        ✅ Notifications when your slot opens<br>
+                        <br>
+                        <strong style="color: var(--market-up);">Current Price: €5 (~$5 USD)</strong>
+                    </p>
+                </div>
+                
+                <button class="btn btn-bid" onclick="submitFreeRegistration()" id="free-submit-btn" style="background: var(--market-up); font-size: 1.1rem;">
+                    🚀 Register FREE Now
+                </button>
+                
+                <p style="text-align: center; color: var(--text-secondary); font-size: 0.8rem; margin-top: 15px;">
+                    No credit card required. Pay only when your transformation begins.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bid Modal (for paid bids) -->
     <div class="modal-overlay" id="bidModal">
         <div class="modal">
             <div class="modal-header">
-                <h3 class="modal-title" id="modal-title">Place Bid</h3>
+                <h3 class="modal-title" id="modal-title">Place Paid Bid</h3>
                 <button class="modal-close" onclick="closeBidModal()">&times;</button>
             </div>
             
             <div id="modal-content">
                 <div class="form-group">
-                    <label class="form-label">Your Bid (₡)</label>
-                    <input type="number" class="form-input" id="modalBidAmount" value="12450">
+                    <label class="form-label">Your Bid (€)</label>
+                    <input type="number" class="form-input" id="modalBidAmount" value="5" min="1">
+                    <small style="color: var(--text-secondary);">~$<span id="modal-usd-price">5</span> USD</small>
                 </div>
                 
                 <div class="form-group">
@@ -1079,14 +1183,20 @@
                     <p style="color: var(--text-secondary); font-size: 0.9rem;">
                         <strong>Summary:</strong><br>
                         Product: <span id="modal-product">Humanizer DNA Synthesis</span><br>
-                        Your Bid: <span id="modal-bid-display">₡12,450</span><br>
-                        Estimated Position: <span id="modal-position">#5-10</span>
+                        Your Bid: <span id="modal-bid-display">€5</span><br>
+                        Estimated Position: <span id="modal-position">#1-10</span>
                     </p>
                 </div>
                 
                 <button class="btn btn-primary" onclick="submitModalBid()" id="modal-submit-btn">
                     Proceed to Payment
                 </button>
+                
+                <p style="text-align: center; margin-top: 15px;">
+                    <a href="#" onclick="closeBidModal(); openFreeRegistrationModal(); return false;" style="color: var(--market-up);">
+                        Or register for FREE instead →
+                    </a>
+                </p>
             </div>
         </div>
     </div>

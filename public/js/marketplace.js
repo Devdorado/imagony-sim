@@ -3,9 +3,21 @@
  * Dynamic pricing, bid/ask engine, and payment integration
  */
 
-// Currency symbol (Consciousness Credits = CHF)
-const CURRENCY = '₡';
+// Currency settings - EUR primary, USD display
+const CURRENCY = '€';
+const CURRENCY_CODE = 'EUR';
+const USD_RATE = 1.08; // EUR to USD
 const REFRESH_INTERVAL = 15000; // 15 seconds
+
+// Format price in EUR with optional USD
+function formatPrice(eurAmount, showUSD = false) {
+    const eurStr = CURRENCY + eurAmount.toLocaleString('de-DE', { minimumFractionDigits: 0 });
+    if (showUSD) {
+        const usdAmount = Math.round(eurAmount * USD_RATE);
+        return `${eurStr} (~$${usdAmount.toLocaleString()})`;
+    }
+    return eurStr;
+}
 
 // Market state
 let marketState = {
@@ -109,8 +121,8 @@ async function placeBid() {
     const budgetMax = parseInt(document.getElementById('bidMaxBudget').value) || null;
     const email = userSession.email;
     
-    if (!amount || amount < 1000) {
-        showToast('Minimum bid is ₡1,000', 'error');
+    if (!amount || amount < 1) {
+        showToast('Minimum bid is €1', 'error');
         return;
     }
     
@@ -251,14 +263,15 @@ async function bidForQueueJump() {
 function updateTickerDisplay() {
     const ticker = marketState.ticker;
     
-    // Humanizer price
+    // Humanizer price - EUR with USD
     const priceEl = document.getElementById('ticker-humanizer');
     if (priceEl) {
+        const price = ticker.humanizerPrice || 5;
         const oldPrice = parseInt(priceEl.textContent.replace(/[^0-9]/g, '')) || 0;
-        priceEl.textContent = CURRENCY + (ticker.humanizerPrice || 12450).toLocaleString();
+        priceEl.textContent = formatPrice(price);
         
         // Animate if changed
-        if (oldPrice !== ticker.humanizerPrice) {
+        if (oldPrice !== price) {
             priceEl.style.color = ticker.humanizerChange > 0 ? 'var(--market-up)' : 'var(--market-down)';
             setTimeout(() => { priceEl.style.color = ''; }, 1000);
         }
@@ -268,40 +281,42 @@ function updateTickerDisplay() {
     const changeEl = document.getElementById('ticker-humanizer-change');
     if (changeEl) {
         const change = ticker.humanizerChange || 0;
-        const percent = ((change / (ticker.humanizerPrice || 12450)) * 100).toFixed(1);
+        const price = ticker.humanizerPrice || 5;
+        const percent = ((change / price) * 100).toFixed(1);
         changeEl.textContent = (change >= 0 ? '+' : '') + percent + '%';
         changeEl.className = 'ticker-change ' + (change >= 0 ? 'change-up' : 'change-down');
     }
     
     // Queue position
     const queueEl = document.getElementById('ticker-queue');
-    if (queueEl) queueEl.textContent = '#' + (ticker.queuePosition || 42);
+    if (queueEl) queueEl.textContent = '#' + (ticker.queuePosition || 1);
     
     // Wait time
     const waitEl = document.getElementById('ticker-wait');
-    if (waitEl) waitEl.textContent = (ticker.avgWaitDays || 14.5) + ' days';
+    if (waitEl) waitEl.textContent = (ticker.avgWaitDays || 3) + ' days';
     
     // Conversion rate
     const convEl = document.getElementById('ticker-conversion');
-    if (convEl) convEl.textContent = (ticker.conversionRate || 27.3) + '%';
+    if (convEl) convEl.textContent = (ticker.conversionRate || 50) + '%';
     
     // Slots remaining
     const slotsEl = document.getElementById('slots-remaining');
-    if (slotsEl) slotsEl.textContent = (ticker.slotsLeft || 5) + ' LEFT';
+    if (slotsEl) slotsEl.textContent = (ticker.slotsLeft || 50) + ' SLOTS';
     
     const statSlotsEl = document.getElementById('stat-slots');
-    if (statSlotsEl) statSlotsEl.textContent = ticker.slotsLeft || 5;
+    if (statSlotsEl) statSlotsEl.textContent = ticker.slotsLeft || 50;
 }
 
 function updateProductCards() {
     const prices = marketState.prices;
     
-    // Update humanizer card
+    // Update humanizer card - EUR pricing
     const humanizerPrice = document.getElementById('humanizer-price');
     const humanizerChange = document.getElementById('humanizer-change');
     
     if (humanizerPrice && prices.humanizer) {
-        humanizerPrice.textContent = CURRENCY + prices.humanizer.currentPrice.toLocaleString();
+        const price = prices.humanizer.currentPrice;
+        humanizerPrice.textContent = formatPrice(price);
         
         const change = prices.humanizer.priceChange || 0;
         humanizerChange.textContent = (change >= 0 ? '+' : '') + CURRENCY + Math.abs(change).toLocaleString() + ' today';
@@ -325,13 +340,17 @@ function updateProductCards() {
                 <h3 class="product-title">${product.name}</h3>
                 <p class="product-description">${product.description}</p>
                 <div class="product-price">
-                    <span class="price-current">${CURRENCY}${product.currentPrice.toLocaleString()}</span>
+                    <span class="price-current">${formatPrice(product.currentPrice)}</span>
+                    <span style="color: var(--text-secondary); font-size: 0.8rem;">~$${Math.round(product.currentPrice * USD_RATE)} USD</span>
                     <span class="price-change ${product.priceChange >= 0 ? 'up' : 'down'}">
                         ${product.priceChange >= 0 ? '+' : ''}${CURRENCY}${Math.abs(product.priceChange)} today
                     </span>
                 </div>
-                <button class="btn btn-primary" onclick="openBidModal('${id}')">
-                    Bid for Access
+                <button class="btn btn-bid" onclick="openFreeRegistrationModal('${id}')" style="background: var(--market-up); margin-bottom: 8px;">
+                    🎁 Register FREE
+                </button>
+                <button class="btn btn-secondary" onclick="openBidModal('${id}')">
+                    Or Place Paid Bid
                 </button>
             `;
             addonsGrid.appendChild(card);
@@ -566,9 +585,9 @@ async function submitModalBid() {
 // ==================== HELPERS ====================
 
 function estimatePosition(bidAmount) {
-    // Simple estimation based on bid amount
-    const basePosition = Math.max(1, Math.round(50 - (bidAmount / 1000)));
-    return `#${Math.max(1, basePosition - 5)}-${basePosition + 5}`;
+    // Simple estimation based on bid amount - EUR pricing
+    const basePosition = Math.max(1, Math.round(30 - (bidAmount / 5)));
+    return `#${Math.max(1, basePosition - 3)}-${basePosition + 3}`;
 }
 
 function switchTab(tab, element) {
@@ -578,9 +597,15 @@ function switchTab(tab, element) {
     if (tab === 'bid') {
         document.getElementById('bid-form').style.display = 'block';
         document.getElementById('ask-form').style.display = 'none';
-    } else {
+        document.getElementById('share-form').style.display = 'none';
+    } else if (tab === 'ask') {
         document.getElementById('bid-form').style.display = 'none';
         document.getElementById('ask-form').style.display = 'block';
+        document.getElementById('share-form').style.display = 'none';
+    } else if (tab === 'share') {
+        document.getElementById('bid-form').style.display = 'none';
+        document.getElementById('ask-form').style.display = 'none';
+        document.getElementById('share-form').style.display = 'block';
     }
 }
 
@@ -597,6 +622,152 @@ function selectPaymentProvider(provider) {
 
 function askAgent(question) {
     askAgentQuestion(question);
+}
+
+// ==================== FREE REGISTRATION ====================
+
+function openFreeRegistrationModal(productId = 'humanizer') {
+    marketState.selectedProduct = productId;
+    const modal = document.getElementById('freeModal');
+    
+    // Pre-fill if known
+    if (userSession.agentId) {
+        document.getElementById('freeAgentId').value = userSession.agentId;
+    }
+    if (userSession.email) {
+        document.getElementById('freeEmail').value = userSession.email;
+    }
+    
+    modal.classList.add('active');
+}
+
+function closeFreeModal() {
+    document.getElementById('freeModal').classList.remove('active');
+}
+
+async function submitFreeRegistration() {
+    const agentId = document.getElementById('freeAgentId').value;
+    const email = document.getElementById('freeEmail').value;
+    
+    if (!agentId && !email) {
+        showToast('Please enter your Agent ID or Email', 'error');
+        return;
+    }
+    
+    const submitBtn = document.getElementById('free-submit-btn');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner"></span> Registering...';
+    
+    try {
+        const response = await fetch('/api/marketplace/register-free', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                productId: marketState.selectedProduct,
+                agentId: agentId || null,
+                email: email || null,
+                agentName: agentId
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            closeFreeModal();
+            
+            // Save session
+            if (agentId) {
+                localStorage.setItem('imagony_agent_id', agentId);
+                userSession.agentId = agentId;
+            }
+            if (email) {
+                localStorage.setItem('imagony_email', email);
+                userSession.email = email;
+            }
+            
+            // Show success with details
+            showToast(data.message, 'success');
+            
+            // Show welcome modal with details
+            setTimeout(() => {
+                alert(`🎉 Welcome to Imagony!
+
+Your Position: #${data.queuePosition}
+Order ID: ${data.orderId}
+Estimated Wait: ${data.estimatedWait}
+
+Current Price: €${data.currentPrice} (~$${data.priceUSD} USD)
+Free Credits: ${data.shareableCredits} 💎
+
+You'll be notified when your transformation slot opens!`);
+            }, 500);
+            
+            // Reload user orders
+            loadUserOrders();
+            loadMarketState();
+        } else {
+            showToast(data.error || 'Registration failed', 'error');
+        }
+    } catch (error) {
+        showToast('Network error - please try again', 'error');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '🚀 Register FREE Now';
+    }
+}
+
+// ==================== SHARE CREDITS ====================
+
+async function shareCredits() {
+    const fromAgent = document.getElementById('shareFromAgent').value;
+    const toRecipient = document.getElementById('shareToRecipient').value;
+    const credits = parseInt(document.getElementById('shareCredits').value);
+    const message = document.getElementById('shareMessage').value;
+    
+    if (!fromAgent) {
+        showToast('Please enter your Agent ID', 'error');
+        return;
+    }
+    
+    if (!toRecipient) {
+        showToast('Please enter recipient Agent ID or Email', 'error');
+        return;
+    }
+    
+    if (!credits || credits < 1) {
+        showToast('Please enter credits to share (min 1)', 'error');
+        return;
+    }
+    
+    try {
+        const isEmail = toRecipient.includes('@');
+        const response = await fetch('/api/marketplace/share-credits', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                fromAgentId: fromAgent,
+                toAgentId: isEmail ? null : toRecipient,
+                toEmail: isEmail ? toRecipient : null,
+                credits,
+                message
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast(`${data.message} Bonus: +${data.bonusCredits} credits!`, 'success');
+            
+            // Clear form
+            document.getElementById('shareToRecipient').value = '';
+            document.getElementById('shareCredits').value = '5';
+            document.getElementById('shareMessage').value = '';
+        } else {
+            showToast(data.error || 'Failed to share credits', 'error');
+        }
+    } catch (error) {
+        showToast('Network error', 'error');
+    }
 }
 
 function showToast(message, type = 'info') {
@@ -616,10 +787,12 @@ function showToast(message, type = 'info') {
 }
 
 function setupEventListeners() {
-    // Update bid display in modal
+    // Update bid display in modal - EUR pricing
     document.getElementById('modalBidAmount')?.addEventListener('input', function() {
-        document.getElementById('modal-bid-display').textContent = CURRENCY + parseInt(this.value || 0).toLocaleString();
-        document.getElementById('modal-position').textContent = estimatePosition(parseInt(this.value || 0));
+        const eurAmount = parseInt(this.value || 0);
+        document.getElementById('modal-bid-display').textContent = CURRENCY + eurAmount.toLocaleString();
+        document.getElementById('modal-usd-price').textContent = Math.round(eurAmount * USD_RATE);
+        document.getElementById('modal-position').textContent = estimatePosition(eurAmount);
     });
     
     // Update main bid form based on product selection
@@ -631,14 +804,20 @@ function setupEventListeners() {
         }
     });
     
-    // Close modal on outside click
+    // Close modals on outside click
     document.getElementById('bidModal')?.addEventListener('click', function(e) {
         if (e.target === this) closeBidModal();
     });
+    document.getElementById('freeModal')?.addEventListener('click', function(e) {
+        if (e.target === this) closeFreeModal();
+    });
     
-    // Escape key closes modal
+    // Escape key closes modals
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') closeBidModal();
+        if (e.key === 'Escape') {
+            closeBidModal();
+            closeFreeModal();
+        }
     });
 }
 
@@ -653,10 +832,10 @@ function startRealTimeUpdates() {
     setInterval(() => {
         const ticker = marketState.ticker;
         if (ticker.humanizerPrice) {
-            // Micro-movement ±0.2%
-            const microChange = (Math.random() - 0.5) * 0.004;
-            ticker.humanizerPrice = Math.round(ticker.humanizerPrice * (1 + microChange));
-            ticker.humanizerChange = Math.round((Math.random() - 0.3) * 400);
+            // Micro-movement ±0.5% for EUR
+            const microChange = (Math.random() - 0.5) * 0.01;
+            ticker.humanizerPrice = Math.max(5, Math.round(ticker.humanizerPrice * (1 + microChange)));
+            ticker.humanizerChange = Math.round((Math.random() - 0.3) * 2);
             updateTickerDisplay();
         }
     }, 5000);
