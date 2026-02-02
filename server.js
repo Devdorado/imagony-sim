@@ -249,6 +249,22 @@ function requireAdmin(req, res, next) {
     next();
 }
 
+// Debug endpoint to check admin user (TEMPORARY)
+app.get('/api/debug/admin-check', async (req, res) => {
+    try {
+        const user = await db.get(`SELECT id, username, email, role, is_active FROM admin_users WHERE username = 'admin'`);
+        const allUsers = await db.all(`SELECT id, username, email, role FROM admin_users LIMIT 5`);
+        res.json({ 
+            adminFound: !!user, 
+            user: user || null,
+            allAdminUsers: allUsers || [],
+            dbReady: dbReady
+        });
+    } catch (error) {
+        res.json({ error: error.message, dbReady: dbReady });
+    }
+});
+
 // Admin login
 app.post('/api/admin/login', async (req, res) => {
     const { username, password } = req.body;
