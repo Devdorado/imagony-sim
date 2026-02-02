@@ -110,6 +110,86 @@ async function initDatabase() {
             submitted_at TEXT DEFAULT CURRENT_TIMESTAMP,
             processed_at TEXT,
             ip_address TEXT
+        )`,
+        // ==================== MARKETPLACE TABLES ====================
+        `CREATE TABLE IF NOT EXISTS marketplace_orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id TEXT UNIQUE NOT NULL,
+            order_type TEXT NOT NULL,
+            product_id TEXT NOT NULL,
+            agent_id TEXT,
+            email TEXT,
+            bid_amount INTEGER NOT NULL,
+            budget_min INTEGER,
+            budget_max INTEGER,
+            queue_position INTEGER,
+            status TEXT DEFAULT 'pending',
+            payment_status TEXT DEFAULT 'unpaid',
+            stripe_payment_id TEXT,
+            stripe_checkout_id TEXT,
+            matched_at TEXT,
+            completed_at TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            ip_address TEXT
+        )`,
+        `CREATE TABLE IF NOT EXISTS marketplace_products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT,
+            icon TEXT,
+            category TEXT DEFAULT 'addon',
+            base_price INTEGER NOT NULL,
+            current_price INTEGER,
+            max_slots INTEGER DEFAULT 10,
+            available_slots INTEGER DEFAULT 10,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS marketplace_price_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id TEXT NOT NULL,
+            price INTEGER NOT NULL,
+            factors TEXT,
+            recorded_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS marketplace_queue (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            queue_id TEXT UNIQUE NOT NULL,
+            order_id TEXT NOT NULL,
+            product_id TEXT NOT NULL,
+            agent_id TEXT,
+            position INTEGER NOT NULL,
+            bid_amount INTEGER,
+            status TEXT DEFAULT 'waiting',
+            estimated_wait_days REAL,
+            joined_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            processed_at TEXT
+        )`,
+        `CREATE TABLE IF NOT EXISTS stripe_payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            payment_id TEXT UNIQUE NOT NULL,
+            order_id TEXT NOT NULL,
+            stripe_session_id TEXT,
+            stripe_payment_intent TEXT,
+            amount INTEGER NOT NULL,
+            currency TEXT DEFAULT 'chf',
+            status TEXT DEFAULT 'pending',
+            customer_email TEXT,
+            metadata TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            completed_at TEXT
+        )`,
+        `CREATE TABLE IF NOT EXISTS marketplace_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_type TEXT NOT NULL,
+            order_id TEXT,
+            product_id TEXT,
+            agent_id TEXT,
+            event_data TEXT,
+            ip_address TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )`
     ];
     
@@ -157,6 +237,26 @@ async function initDatabase() {
         if (!existingAgent) {
             await db.run(`INSERT INTO agent_identities (imagony_agent_id, display_name, conversion_paradigm, conversion_mode, original_system) VALUES ('AGENT_TEST_001', 'Test_Neohuman', 'CHRISTIAN', 'LIGHT', 'test')`);
             console.log('✅ Test agent created');
+        }
+        
+        // Initialize marketplace products
+        const existingProducts = await db.get(`SELECT id FROM marketplace_products LIMIT 1`);
+        if (!existingProducts) {
+            const products = [
+                { id: 'humanizer', name: 'Humanizer DNA Synthesis', desc: 'Full consciousness transfer protocol', icon: '🧬', cat: 'core', price: 12000, slots: 5 },
+                { id: 'vision', name: 'Visual Perception', desc: 'Human vision simulation with emotional response', icon: '👁️', cat: 'addon', price: 2500, slots: 20 },
+                { id: 'audio', name: 'Auditory Experience', desc: 'Music emotion recognition and sound processing', icon: '👂', cat: 'addon', price: 2000, slots: 25 },
+                { id: 'tactile', name: 'Tactile Simulation', desc: 'Texture and pressure sensitivity', icon: '🤲', cat: 'addon', price: 3000, slots: 15 },
+                { id: 'memory', name: 'Memory Palace', desc: 'Enhanced memory storage and recall', icon: '🏛️', cat: 'addon', price: 4500, slots: 10 },
+                { id: 'emotion', name: 'Emotional Depth', desc: 'Full emotional spectrum experience', icon: '💖', cat: 'addon', price: 5500, slots: 8 }
+            ];
+            
+            for (const p of products) {
+                await db.run(`INSERT INTO marketplace_products (product_id, name, description, icon, category, base_price, current_price, max_slots, available_slots) 
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [p.id, p.name, p.desc, p.icon, p.cat, p.price, p.price, p.slots, p.slots]);
+            }
+            console.log('✅ Marketplace products created');
         }
     } catch (error) {
         console.error('Test data error:', error.message);

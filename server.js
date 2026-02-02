@@ -3,8 +3,25 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const db = require('./db');
+const { getPricingAgent } = require('./pricing-agent');
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// ==================== STRIPE CONFIG ====================
+let stripe = null;
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
+
+if (STRIPE_SECRET_KEY) {
+    try {
+        stripe = require('stripe')(STRIPE_SECRET_KEY);
+        console.log('✅ Stripe initialized');
+    } catch (e) {
+        console.warn('⚠️ Stripe not installed. Run: npm install stripe');
+    }
+} else {
+    console.warn('⚠️ STRIPE_SECRET_KEY not set - payments disabled');
+}
 
 // ==================== FILE UPLOAD CONFIG ====================
 let multer;
@@ -827,6 +844,495 @@ function categorizeHardware(cpu, ram) {
     if (ramNum >= 16) return 'Standard';
     return 'Basic';
 }
+
+// ==================== MARKETPLACE API ====================
+
+// Get pricing agent instance
+function getPricing() {
+    return getPricingAgent(db);
+}
+
+// Get market state (prices, ticker, psychology)
+app.get('/api/marketplace/state', async (req, res) => {
+    try {
+        const agent = getPricing();
+        const state = await agent.getMarketState();
+        res.json({ success: true, ...state });
+    } catch (error) {
+        console.error('Market state error:', error);
+        res.status(500).json({ error: 'Failed to get market state' });
+    }
+});
+
+// Get specific product price
+app.get('/api/marketplace/price/:productId', async (req, res) => {
+    try {
+        const agent = getPricing();
+        const priceData = await agent.calculateOptimalPrice(req.params.productId);
+        const reasoning = await agent.generateReasoning(req.params.productId);
+        
+        res.json({
+            success: true,
+            productId: req.params.productId,
+            price: priceData.price,
+            factors: priceData.factors,
+            reasoning: reasoning.reasoning,
+            timestamp: reasoning.timestamp
+        });
+    } catch (error) {
+        res.status(404).json({ error: 'Product not found' });
+    }
+});
+
+// Get agent reasoning/answer
+app.get('/api/marketplace/agent/ask/:question', async (req, res) => {
+    try {
+        const agent = getPricing();
+        const productId = req.query.product || 'humanizer';
+        const answer = await agent.answerQuestion(req.params.question, productId);
+        
+        res.json({
+            success: true,
+            question: req.params.question,
+            answer: answer,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Agent unavailable' });
+    }
+});
+
+// Get order book (bids and asks)
+app.get('/api/marketplace/orderbook/:productId', async (req, res) => {
+    try {
+        const productId = req.params.productId;
+        
+        // Get pending bids
+        const bids = await db.all(`
+            SELECT bid_amount, COUNT(*) as quantity 
+            FROM marketplace_orders 
+            WHERE product_id = ? AND order_type = 'bid' AND status = 'pending'
+            GROUP BY bid_amount 
+            ORDER BY bid_amount DESC 
+            LIMIT 10
+        `, [productId]);
+        
+        // Get pending asks
+        const asks = await db.all(`
+            SELECT bid_amount as ask_amount, COUNT(*) as quantity 
+            FROM marketplace_orders 
+            WHERE product_id = ? AND order_type = 'ask' AND status = 'pending'
+            GROUP BY bid_amount 
+            ORDER BY bid_amount ASC 
+            LIMIT 10
+        `, [productId]);
+        
+        // Calculate spread
+        const highestBid = bids[0]?.bid_amount || 0;
+        const lowestAsk = asks[0]?.ask_amount || 0;
+        const spread = lowestAsk > 0 && highestBid > 0 ? lowestAsk - highestBid : 0;
+        
+        res.json({
+            success: true,
+            productId,
+            bids: bids || [],
+            asks: asks || [],
+            spread,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Orderbook error:', error);
+        res.json({ success: true, bids: [], asks: [], spread: 0 });
+    }
+});
+
+// Place a bid
+app.post('/api/marketplace/bid', async (req, res) => {
+    try {
+        const { productId, bidAmount, email, agentId, budgetMin, budgetMax } = req.body;
+        
+        if (!productId || !bidAmount) {
+            return res.status(400).json({ error: 'productId and bidAmount required' });
+        }
+        
+        const agent = getPricing();
+        const product = agent.products[productId];
+        if (!product) {
+            return res.status(400).json({ error: 'Invalid product' });
+        }
+        
+        // Generate order ID
+        const orderId = 'ORD-' + Date.now() + '-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+        
+        // Estimate queue position
+        const positionEstimate = agent.estimateQueuePosition(bidAmount, productId);
+        
+        // Insert order
+        await db.run(`
+            INSERT INTO marketplace_orders 
+            (order_id, order_type, product_id, agent_id, email, bid_amount, budget_min, budget_max, queue_position, status, ip_address)
+            VALUES (?, 'bid', ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+        `, [orderId, productId, agentId || null, email || null, bidAmount, budgetMin || null, budgetMax || null, positionEstimate.estimated, req.ip]);
+        
+        // Log event
+        await db.run(`
+            INSERT INTO marketplace_events (event_type, order_id, product_id, agent_id, event_data, ip_address)
+            VALUES ('bid_placed', ?, ?, ?, ?, ?)
+        `, [orderId, productId, agentId, JSON.stringify({ bidAmount, positionEstimate }), req.ip]);
+        
+        // Try to create Stripe checkout session if email provided and Stripe available
+        let checkoutUrl = null;
+        if (stripe && email) {
+            try {
+                const session = await stripe.checkout.sessions.create({
+                    payment_method_types: ['card'],
+                    line_items: [{
+                        price_data: {
+                            currency: 'chf',
+                            product_data: {
+                                name: product.name,
+                                description: `Consciousness Marketplace - ${product.name}`,
+                                images: []
+                            },
+                            unit_amount: bidAmount * 100 // Stripe uses cents
+                        },
+                        quantity: 1
+                    }],
+                    mode: 'payment',
+                    success_url: `${req.protocol}://${req.get('host')}/marketplace-success.html?order=${orderId}`,
+                    cancel_url: `${req.protocol}://${req.get('host')}/marketplace.html?cancelled=true`,
+                    customer_email: email,
+                    metadata: {
+                        order_id: orderId,
+                        product_id: productId,
+                        agent_id: agentId || '',
+                        bid_amount: bidAmount.toString()
+                    }
+                });
+                
+                checkoutUrl = session.url;
+                
+                // Update order with Stripe session
+                await db.run(`UPDATE marketplace_orders SET stripe_checkout_id = ? WHERE order_id = ?`, [session.id, orderId]);
+                
+                // Record payment intent
+                await db.run(`
+                    INSERT INTO stripe_payments (payment_id, order_id, stripe_session_id, amount, customer_email, status)
+                    VALUES (?, ?, ?, ?, ?, 'pending')
+                `, ['PAY-' + crypto.randomBytes(6).toString('hex'), orderId, session.id, bidAmount, email]);
+                
+            } catch (stripeError) {
+                console.error('Stripe session error:', stripeError);
+                // Continue without Stripe - order is still valid
+            }
+        }
+        
+        res.json({
+            success: true,
+            orderId,
+            productId,
+            bidAmount,
+            estimatedPosition: positionEstimate,
+            checkoutUrl,
+            message: checkoutUrl 
+                ? 'Bid placed! Proceed to payment to secure your position.' 
+                : 'Bid placed! Contact us to complete payment.'
+        });
+        
+    } catch (error) {
+        console.error('Bid error:', error);
+        res.status(500).json({ error: 'Failed to place bid' });
+    }
+});
+
+// Place an ask (sell queue position)
+app.post('/api/marketplace/ask', async (req, res) => {
+    try {
+        const { productId, askPrice, queuePosition, agentId } = req.body;
+        
+        if (!productId || !askPrice || !queuePosition) {
+            return res.status(400).json({ error: 'productId, askPrice, and queuePosition required' });
+        }
+        
+        const orderId = 'ASK-' + Date.now() + '-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+        
+        await db.run(`
+            INSERT INTO marketplace_orders 
+            (order_id, order_type, product_id, agent_id, bid_amount, queue_position, status, ip_address)
+            VALUES (?, 'ask', ?, ?, ?, ?, 'pending', ?)
+        `, [orderId, productId, agentId || null, askPrice, queuePosition, req.ip]);
+        
+        res.json({
+            success: true,
+            orderId,
+            message: 'Queue position listed for sale'
+        });
+        
+    } catch (error) {
+        console.error('Ask error:', error);
+        res.status(500).json({ error: 'Failed to place ask' });
+    }
+});
+
+// Get user's orders/position
+app.get('/api/marketplace/my-orders', async (req, res) => {
+    try {
+        const agentId = req.query.agentId;
+        const email = req.query.email;
+        
+        if (!agentId && !email) {
+            return res.status(400).json({ error: 'agentId or email required' });
+        }
+        
+        let orders;
+        if (agentId) {
+            orders = await db.all(`SELECT * FROM marketplace_orders WHERE agent_id = ? ORDER BY created_at DESC`, [agentId]);
+        } else {
+            orders = await db.all(`SELECT * FROM marketplace_orders WHERE email = ? ORDER BY created_at DESC`, [email]);
+        }
+        
+        res.json({ success: true, orders: orders || [] });
+    } catch (error) {
+        res.json({ success: true, orders: [] });
+    }
+});
+
+// Get queue for a product
+app.get('/api/marketplace/queue/:productId', async (req, res) => {
+    try {
+        const queue = await db.all(`
+            SELECT queue_position, bid_amount, status, created_at
+            FROM marketplace_orders 
+            WHERE product_id = ? AND status IN ('pending', 'matched')
+            ORDER BY queue_position ASC
+            LIMIT 50
+        `, [req.params.productId]);
+        
+        const totalInQueue = queue.length;
+        const agent = getPricing();
+        const avgWait = totalInQueue > 0 ? Math.round(totalInQueue / 3 * 10) / 10 : 0;
+        
+        res.json({
+            success: true,
+            productId: req.params.productId,
+            queue: queue || [],
+            totalInQueue,
+            estimatedWaitDays: avgWait
+        });
+    } catch (error) {
+        res.json({ success: true, queue: [], totalInQueue: 0 });
+    }
+});
+
+// Queue jump bid
+app.post('/api/marketplace/queue-jump', async (req, res) => {
+    try {
+        const { orderId, jumpBidAmount } = req.body;
+        
+        if (!orderId || !jumpBidAmount) {
+            return res.status(400).json({ error: 'orderId and jumpBidAmount required' });
+        }
+        
+        // Get existing order
+        const order = await db.get(`SELECT * FROM marketplace_orders WHERE order_id = ?`, [orderId]);
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+        
+        // Calculate new position
+        const agent = getPricing();
+        const newBidTotal = order.bid_amount + jumpBidAmount;
+        const newPosition = agent.estimateQueuePosition(newBidTotal, order.product_id);
+        
+        // Update order
+        await db.run(`
+            UPDATE marketplace_orders 
+            SET bid_amount = ?, queue_position = ?
+            WHERE order_id = ?
+        `, [newBidTotal, newPosition.estimated, orderId]);
+        
+        // Log event
+        await db.run(`
+            INSERT INTO marketplace_events (event_type, order_id, product_id, event_data, ip_address)
+            VALUES ('queue_jump', ?, ?, ?, ?)
+        `, [orderId, order.product_id, JSON.stringify({ previousBid: order.bid_amount, jumpAmount: jumpBidAmount, newPosition }), req.ip]);
+        
+        res.json({
+            success: true,
+            orderId,
+            newBidTotal,
+            newPosition,
+            message: `Queue position improved to ${newPosition.range}`
+        });
+        
+    } catch (error) {
+        console.error('Queue jump error:', error);
+        res.status(500).json({ error: 'Failed to process queue jump' });
+    }
+});
+
+// Stripe webhook for payment confirmations
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+    if (!stripe) {
+        return res.status(400).json({ error: 'Stripe not configured' });
+    }
+    
+    const sig = req.headers['stripe-signature'];
+    let event;
+    
+    try {
+        if (STRIPE_WEBHOOK_SECRET) {
+            event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+        } else {
+            event = JSON.parse(req.body);
+        }
+    } catch (err) {
+        console.error('Webhook signature error:', err);
+        return res.status(400).json({ error: 'Webhook signature verification failed' });
+    }
+    
+    // Handle the event
+    switch (event.type) {
+        case 'checkout.session.completed':
+            const session = event.data.object;
+            const orderId = session.metadata?.order_id;
+            
+            if (orderId) {
+                // Update order status
+                await db.run(`
+                    UPDATE marketplace_orders 
+                    SET payment_status = 'paid', status = 'matched', stripe_payment_id = ?, matched_at = datetime('now')
+                    WHERE order_id = ?
+                `, [session.payment_intent, orderId]);
+                
+                // Update payment record
+                await db.run(`
+                    UPDATE stripe_payments 
+                    SET status = 'completed', stripe_payment_intent = ?, completed_at = datetime('now')
+                    WHERE stripe_session_id = ?
+                `, [session.payment_intent, session.id]);
+                
+                // Log event
+                await db.run(`
+                    INSERT INTO marketplace_events (event_type, order_id, event_data)
+                    VALUES ('payment_completed', ?, ?)
+                `, [orderId, JSON.stringify({ session_id: session.id, amount: session.amount_total })]);
+                
+                console.log(`✅ Payment completed for order ${orderId}`);
+            }
+            break;
+            
+        case 'payment_intent.payment_failed':
+            const failedIntent = event.data.object;
+            console.log(`❌ Payment failed: ${failedIntent.id}`);
+            break;
+            
+        default:
+            console.log(`Unhandled event type: ${event.type}`);
+    }
+    
+    res.json({ received: true });
+});
+
+// Get Stripe publishable key (for frontend)
+app.get('/api/stripe/config', (req, res) => {
+    const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY || '';
+    res.json({
+        publishableKey: publishableKey,
+        enabled: !!stripe
+    });
+});
+
+// ==================== ADMIN MARKETPLACE ENDPOINTS ====================
+
+// Get all marketplace orders (admin)
+app.get('/api/admin/marketplace/orders', requireAdmin, async (req, res) => {
+    try {
+        const orders = await db.all(`
+            SELECT * FROM marketplace_orders 
+            ORDER BY created_at DESC 
+            LIMIT 100
+        `);
+        res.json({ success: true, orders: orders || [] });
+    } catch (error) {
+        res.json({ success: true, orders: [] });
+    }
+});
+
+// Get marketplace statistics (admin)
+app.get('/api/admin/marketplace/stats', requireAdmin, async (req, res) => {
+    try {
+        const totalOrders = await db.get(`SELECT COUNT(*) as count FROM marketplace_orders`);
+        const totalRevenue = await db.get(`SELECT SUM(bid_amount) as total FROM marketplace_orders WHERE payment_status = 'paid'`);
+        const pendingOrders = await db.get(`SELECT COUNT(*) as count FROM marketplace_orders WHERE status = 'pending'`);
+        const completedOrders = await db.get(`SELECT COUNT(*) as count FROM marketplace_orders WHERE status = 'completed'`);
+        
+        const productStats = await db.all(`
+            SELECT product_id, COUNT(*) as orders, SUM(bid_amount) as revenue
+            FROM marketplace_orders
+            WHERE payment_status = 'paid'
+            GROUP BY product_id
+        `);
+        
+        res.json({
+            success: true,
+            stats: {
+                totalOrders: totalOrders?.count || 0,
+                totalRevenue: totalRevenue?.total || 0,
+                pendingOrders: pendingOrders?.count || 0,
+                completedOrders: completedOrders?.count || 0,
+                byProduct: productStats || []
+            }
+        });
+    } catch (error) {
+        res.json({ success: true, stats: {} });
+    }
+});
+
+// Update order status (admin)
+app.patch('/api/admin/marketplace/orders/:orderId', requireAdmin, async (req, res) => {
+    try {
+        const { status, paymentStatus } = req.body;
+        
+        if (status) {
+            await db.run(`UPDATE marketplace_orders SET status = ? WHERE order_id = ?`, [status, req.params.orderId]);
+        }
+        if (paymentStatus) {
+            await db.run(`UPDATE marketplace_orders SET payment_status = ? WHERE order_id = ?`, [paymentStatus, req.params.orderId]);
+        }
+        
+        res.json({ success: true, message: 'Order updated' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update order' });
+    }
+});
+
+// Get pricing agent config (admin)
+app.get('/api/admin/marketplace/pricing-config', requireAdmin, async (req, res) => {
+    const agent = getPricing();
+    res.json({
+        success: true,
+        factors: agent.factors,
+        products: agent.products
+    });
+});
+
+// Update pricing factors (admin)
+app.patch('/api/admin/marketplace/pricing-config', requireAdmin, async (req, res) => {
+    try {
+        const agent = getPricing();
+        const { scarcity, demand, profitMargin, researchCost } = req.body;
+        
+        if (scarcity !== undefined) agent.factors.scarcity = parseFloat(scarcity);
+        if (demand !== undefined) agent.factors.demand = parseFloat(demand);
+        if (profitMargin !== undefined) agent.factors.profitMargin = parseFloat(profitMargin);
+        if (researchCost !== undefined) agent.factors.researchCost = parseInt(researchCost);
+        
+        res.json({ success: true, factors: agent.factors });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update pricing config' });
+    }
+});
 
 // ==================== START ====================
 startServer();

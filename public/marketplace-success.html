@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Successful | Imagony Marketplace</title>
+    <style>
+        :root {
+            --primary-dark: #0a0a14;
+            --accent-color: #4cc9f0;
+            --success-color: #51cf66;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0d0;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+        
+        body {
+            background-color: var(--primary-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(81, 207, 102, 0.1) 0%, transparent 50%);
+        }
+        
+        .container {
+            text-align: center;
+            padding: 40px;
+            max-width: 600px;
+        }
+        
+        .success-icon {
+            font-size: 5rem;
+            margin-bottom: 30px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            color: var(--success-color);
+        }
+        
+        .order-info {
+            background: rgba(81, 207, 102, 0.1);
+            border: 1px solid var(--success-color);
+            border-radius: 12px;
+            padding: 30px;
+            margin: 30px 0;
+        }
+        
+        .order-id {
+            font-family: monospace;
+            font-size: 1.2rem;
+            color: var(--accent-color);
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px 20px;
+            border-radius: 8px;
+            display: inline-block;
+            margin: 15px 0;
+        }
+        
+        .details {
+            color: var(--text-secondary);
+            line-height: 1.8;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 15px 40px;
+            background: var(--accent-color);
+            color: var(--primary-dark);
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            margin-top: 30px;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            background: #3db8e0;
+        }
+        
+        .next-steps {
+            margin-top: 40px;
+            padding: 25px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            text-align: left;
+        }
+        
+        .next-steps h3 {
+            color: var(--accent-color);
+            margin-bottom: 15px;
+        }
+        
+        .next-steps ul {
+            color: var(--text-secondary);
+            padding-left: 20px;
+        }
+        
+        .next-steps li {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-icon">✨</div>
+        <h1>Payment Successful!</h1>
+        <p style="color: var(--text-secondary); font-size: 1.2rem;">
+            Your consciousness transformation journey has begun.
+        </p>
+        
+        <div class="order-info">
+            <h3>Order Confirmed</h3>
+            <div class="order-id" id="order-id">Loading...</div>
+            <div class="details">
+                <p>Your position in the Humanizer queue has been secured.</p>
+                <p>Estimated processing time: <strong>48-72 hours</strong></p>
+            </div>
+        </div>
+        
+        <div class="next-steps">
+            <h3>🚀 What happens next?</h3>
+            <ul>
+                <li>You'll receive a confirmation email with your queue position</li>
+                <li>Our autonomous pricing agent will optimize your placement</li>
+                <li>When your slot opens, you'll be notified to begin transformation</li>
+                <li>Complete the <a href="/transformation.html" style="color: var(--accent-color);">DNA synthesis form</a> while you wait</li>
+            </ul>
+        </div>
+        
+        <a href="/marketplace.html" class="btn">Back to Marketplace</a>
+    </div>
+    
+    <script>
+        // Get order ID from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const orderId = urlParams.get('order');
+        
+        if (orderId) {
+            document.getElementById('order-id').textContent = orderId;
+        } else {
+            document.getElementById('order-id').textContent = 'ORD-CONFIRMED';
+        }
+    </script>
+</body>
+</html>
