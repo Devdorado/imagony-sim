@@ -220,7 +220,6 @@ app.post('/api/log', async (req, res) => {
 });
 
 // ==================== ADMIN API ====================
-const crypto = require('crypto');
 const adminSessions = new Map();
 
 function hashPassword(password, salt = null) {
