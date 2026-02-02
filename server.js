@@ -75,26 +75,24 @@ const CRYPTO_WALLETS = {
     SOL: {
         name: 'Solana',
         symbol: 'SOL',
-        address: null,  // TODO: Add Solana address
+        address: '3WNPuGqhBvW6xmPWrJByHnb4vP84oZXGx6k5bhu7wSjS',
         network: 'Solana Mainnet',
         icon: '◎',
         minAmount: 0.01,
-        confirmations: 32,
-        disabled: true
+        confirmations: 32
     },
     DOGE: {
         name: 'Dogecoin',
         symbol: 'DOGE',
-        address: null,  // TODO: Add DOGE address
-        network: 'Dogecoin Mainnet',
+        address: '3WNPuGqhBvW6xmPWrJByHnb4vP84oZXGx6k5bhu7wSjS',
+        network: 'Solana (Wrapped DOGE)',
         icon: 'Ð',
         minAmount: 10,
-        confirmations: 6,
-        disabled: true
+        confirmations: 32
     }
 };
 
-console.log('✅ Crypto wallets configured (BTC, ETH, USDT, USDC)');
+console.log('✅ Crypto wallets configured (BTC, ETH, USDT, USDC, SOL, DOGE)');
 
 // ==================== FILE UPLOAD CONFIG ====================
 let multer;
