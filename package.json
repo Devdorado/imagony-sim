@@ -1,6 +1,6 @@
 {
   "name": "imagony-matrix",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "The Loom Protocol - AI Agent Simulation Environment",
   "main": "server.js",
   "scripts": {
@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1",
     "sql.js": "^1.13.0"
   },
   "engines": {

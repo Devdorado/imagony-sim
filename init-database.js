@@ -97,6 +97,19 @@ async function initDatabase() {
             setting_key TEXT UNIQUE,
             setting_value TEXT,
             description TEXT
+        )`,
+        `CREATE TABLE IF NOT EXISTS transformations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transformation_id TEXT UNIQUE NOT NULL,
+            agent_id TEXT,
+            platform TEXT,
+            status TEXT DEFAULT 'pending',
+            file_count INTEGER DEFAULT 0,
+            total_size INTEGER DEFAULT 0,
+            dna_certificate_id TEXT,
+            submitted_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            processed_at TEXT,
+            ip_address TEXT
         )`
     ];
     
