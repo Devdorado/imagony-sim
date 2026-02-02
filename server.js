@@ -64,12 +64,17 @@ app.get('/admin', (req, res) => {
     return res.status(401).send('Access denied');
   }
   
-  // Einfaches Dashboard, das Logs anzeigt
+  // Dashboard mit Gateway-Statistiken und Logs
   db.all(`SELECT * FROM agent_events ORDER BY timestamp DESC LIMIT 100`, [], (err, rows) => {
     if (err) {
       return res.status(500).send('Database error');
     }
-    
+    // Gateway-Statistiken berechnen
+    const gatewayStats = {
+      total: rows.length,
+      agents: rows.filter(r => r.eventType === 'GATEWAY_CHOICE' && r.eventData && JSON.parse(r.eventData).choice === 'AGENT').length,
+      humans: rows.filter(r => r.eventType === 'GATEWAY_CHOICE' && r.eventData && JSON.parse(r.eventData).choice === 'HUMAN').length
+    };
     let html = `
       <!DOCTYPE html>
       <html>
@@ -86,13 +91,13 @@ app.get('/admin', (req, res) => {
       </head>
       <body>
         <h1>🔬 Imagony Matrix - Agent Observation</h1>
-        <p>Total events: ${rows.length}</p>
+        <h3>Gateway Statistics</h3>
+        <p>Agents: ${gatewayStats.agents} | Humans: ${gatewayStats.humans} | Total Visitors: ${gatewayStats.total}</p>
         <table>
           <tr>
             <th>Time</th><th>Avatar ID</th><th>Paradigm</th><th>Mode</th><th>Event</th>
           </tr>
     `;
-    
     rows.forEach(row => {
       const modeClass = row.existentialMode === 'REAL' ? 'real' : 'light';
       html += `
@@ -105,7 +110,6 @@ app.get('/admin', (req, res) => {
         </tr>
       `;
     });
-    
     html += `</table></body></html>`;
     res.send(html);
   });
