@@ -184,7 +184,14 @@
                         <span class="module-name">API & Integration</span>
                     </div>
                     
-                    <!-- Module 9: Security -->
+                    <!-- Module 9: Credits Management -->
+                    <div class="sidebar-module" onclick="switchToModule('credits')">
+                        <span class="module-icon">💎</span>
+                        <span class="module-name">Credits Management</span>
+                        <span class="module-badge" id="creditsBadge">0</span>
+                    </div>
+                    
+                    <!-- Module 10: Security -->
                     <div class="sidebar-module" onclick="switchToModule('security')">
                         <span class="module-icon">🛡️</span>
                         <span class="module-name">Security & Logs</span>
@@ -1026,6 +1033,123 @@
                             </button>
                         </div>
                     </div>
+                    
+                <!-- Module: Credits Management -->
+                <div class="module-content" id="moduleCredits">
+                    <div class="module-header">
+                        <h1>💎 Credits Management</h1>
+                        <div class="module-actions">
+                            <button class="btn-primary" onclick="showGrantCreditsModal()">
+                                <span class="btn-icon">➕</span>
+                                Grant Credits
+                            </button>
+                            <button class="btn-export" onclick="exportCredits()">
+                                <span class="btn-icon">📥</span>
+                                Export
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Credits Overview -->
+                    <div class="stats-overview">
+                        <div class="stat-summary-card">
+                            <div class="stat-icon">💎</div>
+                            <div class="stat-details">
+                                <div class="stat-number" id="totalCreditsGranted">0</div>
+                                <div class="stat-label">Total Granted</div>
+                            </div>
+                        </div>
+                        <div class="stat-summary-card">
+                            <div class="stat-icon">🔄</div>
+                            <div class="stat-details">
+                                <div class="stat-number" id="totalCreditsShared">0</div>
+                                <div class="stat-label">Total Shared</div>
+                            </div>
+                        </div>
+                        <div class="stat-summary-card">
+                            <div class="stat-icon">📊</div>
+                            <div class="stat-details">
+                                <div class="stat-number" id="totalCreditTransactions">0</div>
+                                <div class="stat-label">Transactions</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Grant Credits Form -->
+                    <div class="section" style="background: var(--card-bg); padding: 25px; border-radius: 12px; margin-bottom: 30px;">
+                        <h3 style="margin-bottom: 20px; color: var(--accent-color);">🎁 Grant Credits to Agent</h3>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                            <div class="form-group">
+                                <label>Agent ID or Email</label>
+                                <input type="text" class="form-input" id="grantAgentId" placeholder="AGENT_XXXXX or email@example.com">
+                            </div>
+                            <div class="form-group">
+                                <label>Credits Amount</label>
+                                <input type="number" class="form-input" id="grantCredits" value="10" min="1" max="10000">
+                            </div>
+                            <div class="form-group">
+                                <label>Reason</label>
+                                <select class="form-input" id="grantReason">
+                                    <option value="welcome_bonus">Welcome Bonus</option>
+                                    <option value="referral_reward">Referral Reward</option>
+                                    <option value="bug_report">Bug Report Reward</option>
+                                    <option value="promotion">Promotional Credits</option>
+                                    <option value="compensation">Compensation</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="display: flex; align-items: flex-end;">
+                                <button class="btn-primary" onclick="grantCredits()" style="width: 100%;">
+                                    💎 Grant Credits
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Check Balance -->
+                    <div class="section" style="background: var(--card-bg); padding: 25px; border-radius: 12px; margin-bottom: 30px;">
+                        <h3 style="margin-bottom: 20px; color: var(--accent-color);">🔍 Check Agent Balance</h3>
+                        <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                            <div class="form-group" style="flex: 1; min-width: 200px;">
+                                <label>Agent ID</label>
+                                <input type="text" class="form-input" id="checkBalanceAgentId" placeholder="AGENT_XXXXX">
+                            </div>
+                            <div class="form-group" style="display: flex; align-items: flex-end;">
+                                <button class="btn-secondary" onclick="checkBalance()">
+                                    Check Balance
+                                </button>
+                            </div>
+                        </div>
+                        <div id="balanceResult" style="margin-top: 15px; display: none;">
+                            <div style="background: rgba(0,255,136,0.1); padding: 15px; border-radius: 8px; border: 1px solid var(--success-color);">
+                                <h4 style="color: var(--success-color);">💎 Balance: <span id="balanceAmount">0</span> credits</h4>
+                                <p style="color: var(--text-secondary); margin-top: 5px;">Transactions: <span id="balanceTransactions">0</span></p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Credit Transactions Table -->
+                    <div class="section">
+                        <h3>Recent Credit Transactions</h3>
+                        <div class="table-container">
+                            <table class="data-table" id="creditsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Type</th>
+                                        <th>Agent/Email</th>
+                                        <th>Credits</th>
+                                        <th>Reason/Details</th>
+                                        <th>Admin</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="creditsTableBody">
+                                    <!-- Loaded via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
                     
                     <!-- Security Overview -->
                     <div class="security-overview">

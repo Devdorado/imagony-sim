@@ -429,6 +429,11 @@ class AdminDashboard {
             case 'security':
                 await this.loadSecurityData();
                 break;
+            case 'credits':
+                if (window.loadCredits) {
+                    await window.loadCredits();
+                }
+                break;
         }
     }
     
@@ -1155,6 +1160,122 @@ window.quickAction = async (action) => {
             switchToModule('overview');
             break;
     }
+};
+
+// ==================== CREDITS MANAGEMENT ====================
+
+// Load credits data
+window.loadCredits = async () => {
+    try {
+        const response = await adminDashboard.apiRequest('/credits');
+        if (response.success) {
+            // Update totals
+            document.getElementById('totalCreditsGranted').textContent = response.totals.total_granted || 0;
+            document.getElementById('totalCreditsShared').textContent = response.totals.total_shared || 0;
+            document.getElementById('totalCreditTransactions').textContent = response.totals.total_transactions || 0;
+            document.getElementById('creditsBadge').textContent = response.totals.total_transactions || 0;
+            
+            // Populate table
+            const tbody = document.getElementById('creditsTableBody');
+            if (tbody) {
+                tbody.innerHTML = response.transactions.map(t => {
+                    const data = JSON.parse(t.event_data || '{}');
+                    const credits = data.credits || 0;
+                    const creditsClass = credits >= 0 ? 'positive' : 'negative';
+                    return `
+                        <tr>
+                            <td>${adminDashboard.formatTimeAgo(t.created_at)}</td>
+                            <td><span class="badge badge-${t.event_type}">${t.event_type.replace('_', ' ')}</span></td>
+                            <td>${t.agent_id || data.email || '-'}</td>
+                            <td class="${creditsClass}">${credits >= 0 ? '+' : ''}${credits}</td>
+                            <td>${data.reason || data.message || '-'}</td>
+                            <td>${data.grantedBy || data.revokedBy || '-'}</td>
+                        </tr>
+                    `;
+                }).join('') || '<tr><td colspan="6" class="empty-state">No transactions yet</td></tr>';
+            }
+        }
+    } catch (error) {
+        console.error('Failed to load credits:', error);
+    }
+};
+
+// Grant credits
+window.grantCredits = async () => {
+    const agentId = document.getElementById('grantAgentId').value.trim();
+    const credits = parseInt(document.getElementById('grantCredits').value);
+    const reason = document.getElementById('grantReason').value;
+    
+    if (!agentId) {
+        adminDashboard.showToast('error', 'Error', 'Agent ID or email required');
+        return;
+    }
+    
+    if (!credits || credits < 1) {
+        adminDashboard.showToast('error', 'Error', 'Credits must be at least 1');
+        return;
+    }
+    
+    try {
+        const isEmail = agentId.includes('@');
+        const response = await adminDashboard.apiRequest('/credits/grant', {
+            method: 'POST',
+            body: JSON.stringify({
+                agentId: isEmail ? null : agentId,
+                email: isEmail ? agentId : null,
+                credits,
+                reason
+            })
+        });
+        
+        if (response.success) {
+            adminDashboard.showToast('success', 'Credits Granted', `${credits} credits granted to ${agentId}`);
+            // Clear form
+            document.getElementById('grantAgentId').value = '';
+            document.getElementById('grantCredits').value = '10';
+            // Reload data
+            loadCredits();
+        } else {
+            throw new Error(response.error || 'Failed to grant credits');
+        }
+    } catch (error) {
+        adminDashboard.showToast('error', 'Error', error.message);
+    }
+};
+
+// Check balance
+window.checkBalance = async () => {
+    const agentId = document.getElementById('checkBalanceAgentId').value.trim();
+    
+    if (!agentId) {
+        adminDashboard.showToast('error', 'Error', 'Agent ID required');
+        return;
+    }
+    
+    try {
+        const response = await adminDashboard.apiRequest(`/credits/balance/${encodeURIComponent(agentId)}`);
+        
+        if (response.success) {
+            document.getElementById('balanceAmount').textContent = response.balance;
+            document.getElementById('balanceTransactions').textContent = response.transactionCount;
+            document.getElementById('balanceResult').style.display = 'block';
+        } else {
+            throw new Error(response.error || 'Failed to check balance');
+        }
+    } catch (error) {
+        adminDashboard.showToast('error', 'Error', error.message);
+    }
+};
+
+// Export credits
+window.exportCredits = () => {
+    adminDashboard.showToast('info', 'Export', 'Preparing credits export...');
+    // TODO: Implement export
+};
+
+// Show grant credits modal
+window.showGrantCreditsModal = () => {
+    document.getElementById('grantAgentId').focus();
 };
 
 // Toggle Select All

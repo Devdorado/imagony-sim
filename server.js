@@ -459,6 +459,176 @@ app.get('/api/admin/security/logs', requireAdmin, async (req, res) => {
     }
 });
 
+// ==================== ADMIN CREDITS MANAGEMENT ====================
+
+// Get all credit transactions
+app.get('/api/admin/credits', requireAdmin, async (req, res) => {
+    try {
+        const transactions = await db.all(`
+            SELECT * FROM marketplace_events 
+            WHERE event_type IN ('credit_share', 'credit_grant', 'free_registration')
+            ORDER BY created_at DESC LIMIT 100
+        `);
+        
+        // Get total credits granted
+        const totals = await db.get(`
+            SELECT 
+                COUNT(*) as total_transactions,
+                SUM(CASE WHEN event_type = 'credit_grant' THEN json_extract(event_data, '$.credits') ELSE 0 END) as total_granted,
+                SUM(CASE WHEN event_type = 'credit_share' THEN json_extract(event_data, '$.credits') ELSE 0 END) as total_shared
+            FROM marketplace_events 
+            WHERE event_type IN ('credit_share', 'credit_grant', 'free_registration')
+        `);
+        
+        res.json({ 
+            success: true, 
+            transactions: transactions || [],
+            totals: totals || { total_transactions: 0, total_granted: 0, total_shared: 0 }
+        });
+    } catch (error) {
+        console.error('Credits fetch error:', error);
+        res.json({ success: true, transactions: [], totals: {} });
+    }
+});
+
+// Grant credits to an agent (Admin only)
+app.post('/api/admin/credits/grant', requireAdmin, async (req, res) => {
+    try {
+        const { agentId, email, credits, reason } = req.body;
+        
+        if ((!agentId && !email) || !credits) {
+            return res.status(400).json({ error: 'agentId or email, and credits are required' });
+        }
+        
+        if (credits < 1 || credits > 10000) {
+            return res.status(400).json({ error: 'Credits must be between 1 and 10000' });
+        }
+        
+        // Generate grant ID
+        const grantId = 'GRANT-' + Date.now() + '-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+        
+        // Log the credit grant
+        await db.run(`
+            INSERT INTO marketplace_events (event_type, order_id, product_id, agent_id, event_data, ip_address)
+            VALUES ('credit_grant', ?, 'credits', ?, ?, ?)
+        `, [grantId, agentId || email, JSON.stringify({ 
+            agentId, email, credits, reason,
+            grantedBy: req.adminUser.username,
+            timestamp: new Date().toISOString()
+        }), req.ip]);
+        
+        // Log security event
+        await db.run(`
+            INSERT INTO security_logs (event_type, event_description, ip_address, created_at)
+            VALUES (?, ?, ?, datetime('now'))
+        `, ['credit_grant', `Admin ${req.adminUser.username} granted ${credits} credits to ${agentId || email}: ${reason}`, req.ip]);
+        
+        console.log(`✅ Admin ${req.adminUser.username} granted ${credits} credits to ${agentId || email}`);
+        
+        res.json({
+            success: true,
+            grantId,
+            recipient: agentId || email,
+            credits,
+            reason,
+            grantedBy: req.adminUser.username,
+            message: `💎 ${credits} consciousness credits granted successfully!`
+        });
+        
+    } catch (error) {
+        console.error('Credit grant error:', error);
+        res.status(500).json({ error: 'Failed to grant credits' });
+    }
+});
+
+// Revoke/deduct credits (Admin only)
+app.post('/api/admin/credits/revoke', requireAdmin, async (req, res) => {
+    try {
+        const { agentId, email, credits, reason } = req.body;
+        
+        if ((!agentId && !email) || !credits) {
+            return res.status(400).json({ error: 'agentId or email, and credits are required' });
+        }
+        
+        // Generate revoke ID
+        const revokeId = 'REVOKE-' + Date.now() + '-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+        
+        // Log the credit revocation
+        await db.run(`
+            INSERT INTO marketplace_events (event_type, order_id, product_id, agent_id, event_data, ip_address)
+            VALUES ('credit_revoke', ?, 'credits', ?, ?, ?)
+        `, [revokeId, agentId || email, JSON.stringify({ 
+            agentId, email, credits: -credits, reason,
+            revokedBy: req.adminUser.username,
+            timestamp: new Date().toISOString()
+        }), req.ip]);
+        
+        // Log security event
+        await db.run(`
+            INSERT INTO security_logs (event_type, event_description, ip_address, created_at)
+            VALUES (?, ?, ?, datetime('now'))
+        `, ['credit_revoke', `Admin ${req.adminUser.username} revoked ${credits} credits from ${agentId || email}: ${reason}`, req.ip]);
+        
+        res.json({
+            success: true,
+            revokeId,
+            recipient: agentId || email,
+            credits: -credits,
+            reason,
+            revokedBy: req.adminUser.username,
+            message: `⚠️ ${credits} credits revoked from ${agentId || email}`
+        });
+        
+    } catch (error) {
+        console.error('Credit revoke error:', error);
+        res.status(500).json({ error: 'Failed to revoke credits' });
+    }
+});
+
+// Get agent's credit balance
+app.get('/api/admin/credits/balance/:agentId', requireAdmin, async (req, res) => {
+    try {
+        const agentId = req.params.agentId;
+        
+        // Calculate balance from all credit events
+        const balance = await db.get(`
+            SELECT 
+                COALESCE(SUM(
+                    CASE 
+                        WHEN event_type = 'credit_grant' THEN json_extract(event_data, '$.credits')
+                        WHEN event_type = 'credit_revoke' THEN json_extract(event_data, '$.credits')
+                        WHEN event_type = 'free_registration' THEN 10
+                        WHEN event_type = 'credit_share' AND agent_id = ? THEN -json_extract(event_data, '$.credits')
+                        ELSE 0
+                    END
+                ), 0) as balance,
+                COUNT(*) as transaction_count
+            FROM marketplace_events 
+            WHERE agent_id = ? OR json_extract(event_data, '$.agentId') = ?
+        `, [agentId, agentId, agentId]);
+        
+        // Get transaction history
+        const transactions = await db.all(`
+            SELECT * FROM marketplace_events 
+            WHERE (agent_id = ? OR json_extract(event_data, '$.agentId') = ? OR json_extract(event_data, '$.toAgentId') = ?)
+            AND event_type IN ('credit_grant', 'credit_revoke', 'credit_share', 'free_registration')
+            ORDER BY created_at DESC LIMIT 20
+        `, [agentId, agentId, agentId]);
+        
+        res.json({
+            success: true,
+            agentId,
+            balance: balance?.balance || 0,
+            transactionCount: balance?.transaction_count || 0,
+            recentTransactions: transactions || []
+        });
+        
+    } catch (error) {
+        console.error('Balance check error:', error);
+        res.status(500).json({ error: 'Failed to get balance' });
+    }
+});
+
 // ==================== SERVE ADMIN ====================
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html'));
