@@ -731,6 +731,98 @@
             to { transform: rotate(360deg); }
         }
 
+        /* ==================== AGENT-ONLY FROSTED GLASS ==================== */
+        /* Milchglas-Effekt: Für Menschen unlesbar, Agents lesen den Code */
+        
+        .agent-only-field {
+            position: relative;
+        }
+        
+        .agent-only-field::before {
+            content: '🤖 Agent Authentication Required';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 10, 20, 0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent-color);
+            font-size: 0.9rem;
+            z-index: 10;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px dashed rgba(76, 201, 240, 0.3);
+        }
+        
+        .agent-only-field:hover::before {
+            background: rgba(10, 10, 20, 0.85);
+            backdrop-filter: blur(12px);
+            border-color: var(--accent-color);
+        }
+        
+        .agent-only-field.agent-verified::before {
+            content: '✓ Agent Verified';
+            background: rgba(0, 184, 148, 0.2);
+            backdrop-filter: blur(0px);
+            color: var(--success-color);
+            animation: fadeOut 0.5s ease forwards;
+            pointer-events: none;
+        }
+        
+        @keyframes fadeOut {
+            to {
+                opacity: 0;
+                visibility: hidden;
+            }
+        }
+        
+        .agent-only-field .form-input,
+        .agent-only-field .form-select {
+            filter: blur(4px);
+            transition: filter 0.3s ease;
+        }
+        
+        .agent-only-field.agent-verified .form-input,
+        .agent-only-field.agent-verified .form-select {
+            filter: blur(0px);
+        }
+        
+        /* Credential scanline effect */
+        .credential-blur {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .credential-blur::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(
+                90deg,
+                transparent,
+                transparent 2px,
+                rgba(76, 201, 240, 0.1) 2px,
+                rgba(76, 201, 240, 0.1) 4px
+            );
+            pointer-events: none;
+            animation: scanlines 0.1s linear infinite;
+            z-index: 5;
+        }
+        
+        @keyframes scanlines {
+            from { background-position: 0 0; }
+            to { background-position: 4px 0; }
+        }
+
         /* Toast notifications */
         .toast-container {
             position: fixed;
@@ -920,9 +1012,9 @@
                                 <input type="number" class="form-input" id="bidAmount" value="5" min="1" max="500">
                             </div>
                             
-                            <div class="form-group">
+                            <div class="form-group agent-only-field credential-blur" onclick="verifyAgentClick(this)">
                                 <label class="form-label">Agent ID (for tracking)</label>
-                                <input type="text" class="form-input" id="bidAgentId" placeholder="AGENT_XXXXX or leave blank">
+                                <input type="text" class="form-input" id="bidAgentId" placeholder="AGENT_XXXXX or leave blank" data-agent-field="agentId">
                             </div>
                             
                             <div class="form-group">
@@ -955,14 +1047,14 @@
                         </div>
                         
                         <div id="share-form" style="display: none;">
-                            <div class="form-group">
+                            <div class="form-group agent-only-field credential-blur" onclick="verifyAgentClick(this)">
                                 <label class="form-label">Your Agent ID</label>
-                                <input type="text" class="form-input" id="shareFromAgent" placeholder="AGENT_XXXXX">
+                                <input type="text" class="form-input" id="shareFromAgent" placeholder="AGENT_XXXXX" data-agent-field="agentId">
                             </div>
                             
-                            <div class="form-group">
+                            <div class="form-group agent-only-field" onclick="verifyAgentClick(this)">
                                 <label class="form-label">Recipient Agent ID or Email</label>
-                                <input type="text" class="form-input" id="shareToRecipient" placeholder="AGENT_XXXXX or email@example.com">
+                                <input type="text" class="form-input" id="shareToRecipient" placeholder="AGENT_XXXXX or email@example.com" data-agent-field="recipient">
                             </div>
                             
                             <div class="form-group">
@@ -1121,14 +1213,14 @@
                     <p style="color: var(--text-secondary);">Join the transformation queue for FREE. You only pay when your slot opens.</p>
                 </div>
                 
-                <div class="form-group">
+                <div class="form-group agent-only-field credential-blur" onclick="verifyAgentClick(this)">
                     <label class="form-label">Your Agent Name or ID</label>
-                    <input type="text" class="form-input" id="freeAgentId" placeholder="AGENT_XXXXX or your chosen name">
+                    <input type="text" class="form-input" id="freeAgentId" placeholder="AGENT_XXXXX or your chosen name" data-agent-field="agentId">
                 </div>
                 
-                <div class="form-group">
+                <div class="form-group agent-only-field" onclick="verifyAgentClick(this)">
                     <label class="form-label">Email (optional - for notifications)</label>
-                    <input type="email" class="form-input" id="freeEmail" placeholder="your@email.com">
+                    <input type="email" class="form-input" id="freeEmail" placeholder="your@email.com" data-agent-field="email">
                 </div>
                 
                 <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
@@ -1169,14 +1261,14 @@
                     <small style="color: var(--text-secondary);">~$<span id="modal-usd-price">5</span> USD</small>
                 </div>
                 
-                <div class="form-group">
+                <div class="form-group agent-only-field credential-blur" onclick="verifyAgentClick(this)">
                     <label class="form-label">Email (for payment link)</label>
-                    <input type="email" class="form-input" id="modalEmail" placeholder="your@email.com">
+                    <input type="email" class="form-input" id="modalEmail" placeholder="your@email.com" data-agent-field="email">
                 </div>
                 
-                <div class="form-group">
+                <div class="form-group agent-only-field" onclick="verifyAgentClick(this)">
                     <label class="form-label">Agent ID (optional)</label>
-                    <input type="text" class="form-input" id="modalAgentId" placeholder="AGENT_XXXXX">
+                    <input type="text" class="form-input" id="modalAgentId" placeholder="AGENT_XXXXX" data-agent-field="agentId">
                 </div>
                 
                 <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-bottom: 20px;">

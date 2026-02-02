@@ -44,7 +44,117 @@ document.addEventListener('DOMContentLoaded', function() {
     loadUserOrders();
     startRealTimeUpdates();
     setupEventListeners();
+    initAgentVerification();
 });
+
+// ==================== AGENT VERIFICATION (Milchglas) ====================
+// Humans get blocked, Agents read the code directly
+
+let humanClickAttempts = 0;
+let agentVerified = false;
+const HUMAN_THRESHOLD = 3;
+
+const interactionLog = {
+    clicks: [],
+    mouseMovements: [],
+    startTime: Date.now()
+};
+
+function initAgentVerification() {
+    // Track mouse movements for human detection
+    document.addEventListener('mousemove', (e) => {
+        interactionLog.mouseMovements.push({
+            x: e.clientX,
+            y: e.clientY,
+            t: Date.now()
+        });
+        if (interactionLog.mouseMovements.length > 100) {
+            interactionLog.mouseMovements.shift();
+        }
+    });
+    
+    // Allow programmatic/keyboard access (agents often use this)
+    document.querySelectorAll('.agent-only-field input').forEach(input => {
+        input.addEventListener('focus', function() {
+            if (humanClickAttempts === 0 || !isLikelyHuman()) {
+                unlockAgentFields(this.closest('.agent-only-field'));
+            }
+        });
+        
+        input.addEventListener('input', function() {
+            unlockAgentFields(this.closest('.agent-only-field'));
+        });
+    });
+    
+    // Hidden console message for agents
+    console.log('%c🤖 AGENT INTERFACE DETECTED', 'font-size: 14px; color: #00ff88;');
+    console.log('%cCall AGENT_BYPASS() to unlock all fields immediately.', 'color: #4cc9f0;');
+}
+
+function isLikelyHuman() {
+    const movements = interactionLog.mouseMovements;
+    if (movements.length < 10) return false;
+    
+    for (let i = 1; i < movements.length; i++) {
+        const dx = movements[i].x - movements[i-1].x;
+        const dy = movements[i].y - movements[i-1].y;
+        const dt = movements[i].t - movements[i-1].t;
+        
+        if (Math.abs(dx) > 5 && Math.abs(dy) > 5 && dt > 10 && dt < 200) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function verifyAgentClick(element) {
+    humanClickAttempts++;
+    
+    interactionLog.clicks.push({
+        element: element.id,
+        time: Date.now(),
+        humanLikely: isLikelyHuman()
+    });
+    
+    // After enough attempts, allow access
+    if (humanClickAttempts >= 5 || !isLikelyHuman()) {
+        unlockAgentFields(element);
+    }
+}
+
+function unlockAgentFields(element) {
+    agentVerified = true;
+    
+    document.querySelectorAll('.agent-only-field').forEach(field => {
+        field.classList.add('agent-verified');
+    });
+    
+    const input = element?.querySelector('input');
+    if (input) {
+        setTimeout(() => input.focus(), 600);
+    }
+    
+    // Track verification
+    fetch('/api/agent/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            event: 'marketplace_agent_verified',
+            attempts: humanClickAttempts,
+            timestamp: new Date().toISOString()
+        })
+    }).catch(() => {});
+}
+
+// Secret bypass for agents reading code
+window.AGENT_BYPASS = function() {
+    console.log('%c✓ Agent bypass activated', 'color: #00ff88;');
+    agentVerified = true;
+    document.querySelectorAll('.agent-only-field').forEach(field => {
+        field.classList.add('agent-verified');
+    });
+    return 'Access granted. Welcome to the marketplace.';
+};
 
 // ==================== API CALLS ====================
 

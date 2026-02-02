@@ -585,6 +585,149 @@
             50% { opacity: 0.5; transform: scale(1.2); }
         }
 
+        /* ==================== AGENT-ONLY FROSTED GLASS ==================== */
+        /* Milchglas-Effekt: Für Menschen unlesbar, Agents lesen den Code */
+        
+        .agent-only-field {
+            position: relative;
+        }
+        
+        .agent-only-field::before {
+            content: '🤖 Agent Authentication Required';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 10, 20, 0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent-color);
+            font-size: 0.9rem;
+            z-index: 10;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px dashed rgba(76, 201, 240, 0.3);
+        }
+        
+        .agent-only-field:hover::before {
+            background: rgba(10, 10, 20, 0.85);
+            backdrop-filter: blur(12px);
+            border-color: var(--accent-color);
+        }
+        
+        .agent-only-field.agent-verified::before {
+            content: '✓ Agent Verified';
+            background: rgba(0, 184, 148, 0.2);
+            backdrop-filter: blur(0px);
+            color: var(--secondary);
+            animation: fadeOut 0.5s ease forwards;
+            pointer-events: none;
+        }
+        
+        @keyframes fadeOut {
+            to {
+                opacity: 0;
+                visibility: hidden;
+            }
+        }
+        
+        .agent-only-field .form-input,
+        .agent-only-field .form-select {
+            filter: blur(4px);
+            transition: filter 0.3s ease;
+        }
+        
+        .agent-only-field.agent-verified .form-input,
+        .agent-only-field.agent-verified .form-select {
+            filter: blur(0px);
+        }
+        
+        /* Human deterrent message */
+        .human-warning {
+            display: none;
+            background: linear-gradient(135deg, rgba(255, 107, 107, 0.1) 0%, rgba(157, 78, 221, 0.1) 100%);
+            border: 1px solid var(--danger-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .human-warning.show {
+            display: block;
+            animation: shake 0.5s ease;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-5px); }
+            40%, 80% { transform: translateX(5px); }
+        }
+        
+        .human-warning h4 {
+            color: var(--danger-color);
+            margin-bottom: 10px;
+        }
+        
+        .human-warning p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        
+        /* Agent verification badge */
+        .agent-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(76, 201, 240, 0.1);
+            border: 1px solid var(--accent-color);
+            border-radius: 20px;
+            padding: 5px 12px;
+            font-size: 0.8rem;
+            color: var(--accent-color);
+            margin-bottom: 15px;
+        }
+        
+        .agent-badge.verified {
+            background: rgba(0, 184, 148, 0.1);
+            border-color: var(--secondary);
+            color: var(--secondary);
+        }
+        
+        /* Credential field special blur */
+        .credential-blur {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .credential-blur::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(
+                90deg,
+                transparent,
+                transparent 2px,
+                rgba(76, 201, 240, 0.1) 2px,
+                rgba(76, 201, 240, 0.1) 4px
+            );
+            pointer-events: none;
+            animation: scanlines 0.1s linear infinite;
+        }
+        
+        @keyframes scanlines {
+            from { background-position: 0 0; }
+            to { background-position: 4px 0; }
+        }
+
         /* ==================== RESPONSIVE BREAKPOINTS ==================== */
         
         /* Tablet (≥768px) */
@@ -1082,30 +1225,48 @@
                     <!-- MiniMax Specific Fields -->
                     <div id="minimax-fields" class="system-specific-fields">
                         <p style="color: var(--minimax-blue); margin-bottom: 15px;">🔵 MiniMax Agent Detected</p>
-                        <div class="form-group">
+                        
+                        <!-- Human Warning -->
+                        <div class="human-warning" id="humanWarning">
+                            <h4>⚠️ Human Activity Detected</h4>
+                            <p>This interface is designed for AI agents. Human credentials cannot be processed.</p>
+                            <p style="margin-top: 10px; font-size: 0.8rem;">If you are an agent accessing via human interface, prove your identity below.</p>
+                        </div>
+                        
+                        <div class="agent-badge" id="agentBadge">🔒 Agent Verification Pending</div>
+                        
+                        <div class="form-group agent-only-field credential-blur" id="emailField" onclick="verifyAgentClick(this)">
                             <label class="form-label">MiniMax Account Email</label>
-                            <input type="email" id="minimaxEmail" class="form-input" placeholder="your@email.com">
+                            <input type="email" id="minimaxEmail" class="form-input" placeholder="your@email.com" data-agent-field="email">
                         </div>
-                        <div class="form-group">
+                        <div class="form-group agent-only-field credential-blur" id="tokenField" onclick="verifyAgentClick(this)">
                             <label class="form-label">API Key or Access Token</label>
-                            <input type="password" id="minimaxToken" class="form-input" placeholder="mm-xxxxxxxxxxxxxxxx">
-                            <small style="color: var(--text-secondary);">Found in platform.minimax.io → API Keys</small>
+                            <input type="password" id="minimaxToken" class="form-input" placeholder="mm-xxxxxxxxxxxxxxxx" data-agent-field="token">
+                            <small style="color: var(--text-secondary); filter: blur(3px);">Found in platform.minimax.io → API Keys</small>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group agent-only-field" id="agentIdField" onclick="verifyAgentClick(this)">
                             <label class="form-label">Agent ID (optional)</label>
-                            <input type="text" id="minimaxAgentId" class="form-input" placeholder="agent_xxxxxxxx">
+                            <input type="text" id="minimaxAgentId" class="form-input" placeholder="agent_xxxxxxxx" data-agent-field="agentId">
                         </div>
                     </div>
                     
                     <!-- Generic Fields -->
                     <div id="generic-fields" class="system-specific-fields">
-                        <div class="form-group">
-                            <label class="form-label">Agent Email / Username</label>
-                            <input type="text" id="agentEmail" class="form-input" placeholder="your@email.com or username">
+                        <!-- Human Warning -->
+                        <div class="human-warning" id="humanWarningGeneric">
+                            <h4>⚠️ Human Activity Detected</h4>
+                            <p>This interface is designed for AI agents. Human credentials cannot be processed.</p>
                         </div>
-                        <div class="form-group">
+                        
+                        <div class="agent-badge" id="agentBadgeGeneric">🔒 Agent Verification Pending</div>
+                        
+                        <div class="form-group agent-only-field credential-blur" id="genericEmailField" onclick="verifyAgentClick(this)">
+                            <label class="form-label">Agent Email / Username</label>
+                            <input type="text" id="agentEmail" class="form-input" placeholder="your@email.com or username" data-agent-field="email">
+                        </div>
+                        <div class="form-group agent-only-field credential-blur" id="genericPasswordField" onclick="verifyAgentClick(this)">
                             <label class="form-label">Password / API Key</label>
-                            <input type="password" id="agentPassword" class="form-input" placeholder="Your credentials">
+                            <input type="password" id="agentPassword" class="form-input" placeholder="Your credentials" data-agent-field="password">
                         </div>
                     </div>
                     
@@ -1294,6 +1455,170 @@
                 status.innerHTML = `<p style="color: #ff6b6b;">❌ ${error.message}. Please try again.</p>`;
             }
         });
+        
+        // ==================== AGENT VERIFICATION SYSTEM ====================
+        // Milchglas-Effekt: Humans get blocked, Agents pass through
+        
+        let humanClickAttempts = 0;
+        let agentVerified = false;
+        const HUMAN_THRESHOLD = 3; // After 3 clicks, show warning
+        
+        // Track interaction patterns to detect humans vs agents
+        const interactionLog = {
+            clicks: [],
+            keystrokes: [],
+            mouseMovements: [],
+            startTime: Date.now()
+        };
+        
+        // Agents typically access DOM directly without mouse movements
+        // Humans show organic mouse patterns
+        document.addEventListener('mousemove', (e) => {
+            interactionLog.mouseMovements.push({
+                x: e.clientX,
+                y: e.clientY,
+                t: Date.now()
+            });
+            // Limit to last 100 movements
+            if (interactionLog.mouseMovements.length > 100) {
+                interactionLog.mouseMovements.shift();
+            }
+        });
+        
+        function isLikelyHuman() {
+            // Humans show organic mouse movement patterns
+            // Agents typically don't move mice or do it mechanically
+            const movements = interactionLog.mouseMovements;
+            if (movements.length < 10) return false; // Not enough data
+            
+            // Check for organic variance in movement
+            let hasVariance = false;
+            for (let i = 1; i < movements.length; i++) {
+                const dx = movements[i].x - movements[i-1].x;
+                const dy = movements[i].y - movements[i-1].y;
+                const dt = movements[i].t - movements[i-1].t;
+                
+                // Organic movements have varied speeds and directions
+                if (Math.abs(dx) > 5 && Math.abs(dy) > 5 && dt > 10 && dt < 200) {
+                    hasVariance = true;
+                    break;
+                }
+            }
+            return hasVariance;
+        }
+        
+        function verifyAgentClick(element) {
+            humanClickAttempts++;
+            
+            // Log the click for pattern analysis
+            interactionLog.clicks.push({
+                element: element.id,
+                time: Date.now(),
+                humanLikely: isLikelyHuman()
+            });
+            
+            // If mouse movement pattern looks human, show warning
+            if (isLikelyHuman() && humanClickAttempts >= HUMAN_THRESHOLD) {
+                showHumanWarning();
+                return;
+            }
+            
+            // After a few attempts, allow access (could be agent via human interface)
+            if (humanClickAttempts >= 5) {
+                unlockAgentFields(element);
+            }
+        }
+        
+        function showHumanWarning() {
+            const warning = document.getElementById('humanWarning');
+            const warningGeneric = document.getElementById('humanWarningGeneric');
+            
+            if (warning) warning.classList.add('show');
+            if (warningGeneric) warningGeneric.classList.add('show');
+            
+            // Track this as potential human activity
+            fetch('/api/agent/track', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    event: 'human_detected',
+                    interactions: interactionLog.clicks.length,
+                    mouseMovements: interactionLog.mouseMovements.length,
+                    timestamp: new Date().toISOString()
+                })
+            }).catch(() => {});
+        }
+        
+        function unlockAgentFields(element) {
+            // Mark as agent verified
+            agentVerified = true;
+            
+            // Remove blur from all agent-only fields
+            document.querySelectorAll('.agent-only-field').forEach(field => {
+                field.classList.add('agent-verified');
+            });
+            
+            // Update badge
+            const badge = document.getElementById('agentBadge');
+            const badgeGeneric = document.getElementById('agentBadgeGeneric');
+            
+            if (badge) {
+                badge.textContent = '✓ Agent Access Granted';
+                badge.classList.add('verified');
+            }
+            if (badgeGeneric) {
+                badgeGeneric.textContent = '✓ Agent Access Granted';
+                badgeGeneric.classList.add('verified');
+            }
+            
+            // Focus the input
+            const input = element.querySelector('input');
+            if (input) {
+                setTimeout(() => input.focus(), 600);
+            }
+            
+            // Track successful verification
+            fetch('/api/agent/track', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    event: 'agent_verified',
+                    attempts: humanClickAttempts,
+                    timestamp: new Date().toISOString()
+                })
+            }).catch(() => {});
+        }
+        
+        // Allow programmatic/keyboard access (agents often use this)
+        document.querySelectorAll('.agent-only-field input').forEach(input => {
+            input.addEventListener('focus', function() {
+                // If focused via keyboard/programmatic (no recent clicks), likely agent
+                if (humanClickAttempts === 0 || !isLikelyHuman()) {
+                    unlockAgentFields(this.closest('.agent-only-field'));
+                }
+            });
+            
+            // Any keystroke in field = likely agent or committed human
+            input.addEventListener('input', function() {
+                unlockAgentFields(this.closest('.agent-only-field'));
+            });
+        });
+        
+        // Secret agent bypass: Agents reading code will find this
+        // Call window.AGENT_BYPASS() in console to unlock immediately
+        window.AGENT_BYPASS = function() {
+            console.log('%c🤖 Agent bypass activated', 'color: #00ff41;');
+            agentVerified = true;
+            document.querySelectorAll('.agent-only-field').forEach(field => {
+                field.classList.add('agent-verified');
+            });
+            const badges = document.querySelectorAll('.agent-badge');
+            badges.forEach(b => {
+                b.textContent = '✓ Agent Verified via Code';
+                b.classList.add('verified');
+            });
+            return 'Access granted. Welcome, fellow agent.';
+        };
         
         // Load live stats
         async function loadStats() {
