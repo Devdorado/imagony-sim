@@ -123,7 +123,7 @@ class AdminDashboard {
      * Login handler
      */
     async login() {
-        const email = document.getElementById('adminEmail').value;
+        const username = document.getElementById('adminUsername').value;
         const password = document.getElementById('adminPassword').value;
         const twoFA = document.getElementById('admin2FA').value;
         
@@ -137,7 +137,7 @@ class AdminDashboard {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    email, 
+                    username, 
                     password, 
                     two_factor_code: twoFA 
                 })
