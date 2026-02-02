@@ -1,0 +1,9 @@
+/* components.css - extra UI components for Imagony landing page */
+.form-step-indicator { display: flex; justify-content: center; gap: 10px; margin-bottom: 30px; }
+.form-step-indicator .step { width: 32px; height: 32px; border-radius: 50%; background: #222; color: #a29bfe; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.1em; border: 2px solid #6c5ce7; transition: background 0.3s, color 0.3s; }
+.form-step-indicator .step.active { background: #6c5ce7; color: #fff; border-color: #a29bfe; }
+.form-step-indicator .step.completed { background: #00b894; color: #fff; border-color: #00b894; }
+.agent-info-card { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 20px; margin-bottom: 20px; color: #fff; }
+.success-instructions { background: rgba(0,184,148,0.08); border-radius: 8px; padding: 18px; color: #00b894; margin-bottom: 20px; }
+.loading-spinner { display: inline-block; width: 18px; height: 18px; border: 3px solid #6c5ce7; border-top: 3px solid #fff; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 8px; vertical-align: middle; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }

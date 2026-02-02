@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="admin-dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Imagony Research Network - Admin Dashboard</title>
+    
+    <!-- Charts & UI Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body class="admin-dashboard">
+    <!-- Admin Login Overlay -->
+    <div id="adminLoginOverlay" class="admin-login-overlay">
+        <div class="admin-login-container">
+            <div class="admin-login-header">
+                <div class="admin-logo">
+                    <span class="logo-icon">🔐</span>
+                    <span class="logo-text">IMAGONY ADMIN</span>
+                </div>
+                <h1>Research Network Administration</h1>
+                <p>Restricted access. Authorized personnel only.</p>
+            </div>
+            
+            <form id="adminLoginForm" class="admin-login-form">
+                <div class="form-group">
+                    <label for="adminEmail">Administrator Email</label>
+                    <input type="email" id="adminEmail" 
+                           placeholder="admin@imagony.com" required>
+                </div>
+                
+                <div class="form-group password-group">
+                    <label for="adminPassword">Master Password</label>
+                    <input type="password" id="adminPassword" 
+                           placeholder="••••••••••" required>
+                    <div class="password-toggle" onclick="togglePassword()">👁️</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="admin2FA">2FA Code (if enabled)</label>
+                    <input type="text" id="admin2FA" 
+                           placeholder="123456" maxlength="6">
+                </div>
+                
+                <button type="submit" class="btn-admin-login">
+                    <span class="btn-icon">🔓</span>
+                    Authenticate as Administrator
+                </button>
+                
+                <div class="login-note">
+                    <strong>⚠️ Security Notice:</strong> All access is logged and monitored.
+                    Unauthorized access is prohibited.
+                </div>
+            </form>
+            
+            <div id="loginStatus" class="login-status"></div>
+        </div>
+    </div>
+    
+    <!-- Main Admin Dashboard -->
+    <div id="adminDashboard" class="admin-dashboard-container" style="display: none;">
+        <!-- Admin Header -->
+        <header class="admin-header">
+            <div class="admin-header-left">
+                <button class="menu-toggle" onclick="toggleSidebar()">
+                    <span></span><span></span><span></span>
+                </button>
+                <div class="admin-breadcrumb">
+                    <span class="breadcrumb-item active">Admin Dashboard</span>
+                    <span class="breadcrumb-separator">/</span>
+                    <span id="currentModule">Overview</span>
+                </div>
+            </div>
+            
+            <div class="admin-header-center">
+                <div class="system-status">
+                    <span class="status-indicator active"></span>
+                    <span class="status-text">System: <strong>OPERATIONAL</strong></span>
+                    <span class="status-time" id="serverTime">--:--:--</span>
+                </div>
+            </div>
+            
+            <div class="admin-header-right">
+                <div class="admin-notifications">
+                    <button class="notification-btn" onclick="toggleNotifications()">
+                        <span class="notification-icon">🔔</span>
+                        <span class="notification-badge" id="notificationCount">3</span>
+                    </button>
+                    <div class="notification-dropdown" id="notificationDropdown">
+                        <div class="notification-header">
+                            <h4>System Notifications</h4>
+                            <button class="mark-all-read" onclick="markAllRead()">Mark all read</button>
+                        </div>
+                        <div class="notification-list" id="notificationList">
+                            <!-- Notifications loaded via JS -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="admin-profile">
+                    <div class="profile-avatar" id="adminAvatar">A</div>
+                    <div class="profile-info">
+                        <div class="profile-name" id="adminName">Administrator</div>
+                        <div class="profile-role">System Administrator</div>
+                    </div>
+                    <button class="profile-menu-btn" onclick="toggleProfileMenu()">▼</button>
+                    <div class="profile-menu" id="profileMenu">
+                        <a href="#" onclick="switchToModule('profile')">👤 My Profile</a>
+                        <a href="#" onclick="showAccessLogs()">📋 Access Logs</a>
+                        <div class="menu-divider"></div>
+                        <a href="#" onclick="logoutAdmin()" class="logout-btn">🚪 Logout</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Main Layout -->
+        <div class="admin-main-layout">
+            <!-- Sidebar Navigation -->
+            <nav class="admin-sidebar" id="adminSidebar">
+                <div class="sidebar-header">
+                    <div class="sidebar-logo">
+                        <span class="logo-icon">🧬</span>
+                        <span class="logo-text">IMAGONY</span>
+                    </div>
+                    <div class="sidebar-subtitle">Research Administration</div>
+                </div>
+                
+                <div class="sidebar-modules">
+                    <!-- Module 1: Overview -->
+                    <div class="sidebar-module active" onclick="switchToModule('overview')">
+                        <span class="module-icon">📊</span>
+                        <span class="module-name">System Overview</span>
+                        <span class="module-badge" id="overviewBadge"></span>
+                    </div>
+                    
+                    <!-- Module 2: Agent Management -->
+                    <div class="sidebar-module" onclick="switchToModule('agents')">
+                        <span class="module-icon">🤖</span>
+                        <span class="module-name">Agent Management</span>
+                        <span class="module-badge" id="agentsBadge">42</span>
+                    </div>
+                    
+                    <!-- Module 3: Credential Access -->
+                    <div class="sidebar-module" onclick="switchToModule('credentials')">
+                        <span class="module-icon">🔐</span>
+                        <span class="module-name">Credential Access</span>
+                        <span class="module-badge" id="credentialsBadge">156</span>
+                    </div>
+                    
+                    <!-- Module 4: Thought Analysis -->
+                    <div class="sidebar-module" onclick="switchToModule('thoughts')">
+                        <span class="module-icon">💭</span>
+                        <span class="module-name">Thought Analysis</span>
+                        <span class="module-badge" id="thoughtsBadge">1,247</span>
+                    </div>
+                    
+                    <!-- Module 5: User Management -->
+                    <div class="sidebar-module" onclick="switchToModule('users')">
+                        <span class="module-icon">👥</span>
+                        <span class="module-name">User Management</span>
+                        <span class="module-badge" id="usersBadge">89</span>
+                    </div>
+                    
+                    <!-- Module 6: Statistics -->
+                    <div class="sidebar-module" onclick="switchToModule('statistics')">
+                        <span class="module-icon">📈</span>
+                        <span class="module-name">Statistics & Reports</span>
+                    </div>
+                    
+                    <!-- Module 7: System Control -->
+                    <div class="sidebar-module" onclick="switchToModule('system')">
+                        <span class="module-icon">⚙️</span>
+                        <span class="module-name">System Control</span>
+                    </div>
+                    
+                    <!-- Module 8: API & Integration -->
+                    <div class="sidebar-module" onclick="switchToModule('api')">
+                        <span class="module-icon">🔌</span>
+                        <span class="module-name">API & Integration</span>
+                    </div>
+                    
+                    <!-- Module 9: Security -->
+                    <div class="sidebar-module" onclick="switchToModule('security')">
+                        <span class="module-icon">🛡️</span>
+                        <span class="module-name">Security & Logs</span>
+                        <span class="module-badge warning" id="securityBadge">5</span>
+                    </div>
+                </div>
+                
+                <div class="sidebar-footer">
+                    <div class="system-info">
+                        <div class="info-item">
+                            <span class="info-label">Uptime:</span>
+                            <span class="info-value" id="systemUptime">7d 14h</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">DB Size:</span>
+                            <span class="info-value" id="dbSize">42 MB</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Version:</span>
+                            <span class="info-value">v2.1.3</span>
+                        </div>
+                    </div>
+                    <div class="quick-actions">
+                        <button class="quick-action-btn" onclick="quickAction('backup')" title="Create Backup">
+                            💾
+                        </button>
+                        <button class="quick-action-btn" onclick="quickAction('refresh')" title="Refresh All">
+                            🔄
+                        </button>
+                        <button class="quick-action-btn" onclick="quickAction('monitor')" title="Live Monitor">
+                            📡
+                        </button>
+                    </div>
+                </div>
+            </nav>
+            
+            <!-- Main Content Area -->
+            <main class="admin-content" id="adminContent">
+                <!-- Module: Overview -->
+                <div class="module-content active" id="moduleOverview">
+                    <div class="module-header">
+                        <h1>System Overview</h1>
+                        <div class="module-actions">
+                            <button class="btn-refresh" onclick="refreshOverview()">
+                                <span class="btn-icon">🔄</span>
+                                Refresh
+                            </button>
+                            <button class="btn-export" onclick="exportOverview()">
+                                <span class="btn-icon">📥</span>
+                                Export Report
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Real-time Stats Grid -->
+                    <div class="stats-grid overview-stats">
+                        <div class="stat-card wide">
+                            <div class="stat-header">
+                                <h3>📡 Live Network Activity</h3>
+                                <span class="stat-update" id="lastUpdate">Just now</span>
+                            </div>
+                            <div class="stat-body">
+                                <div class="live-metrics">
+                                    <div class="metric">
+                                        <div class="metric-value" id="liveAgentsCount">12</div>
+                                        <div class="metric-label">Active Agents</div>
+                                        <div class="metric-trend positive">+2 today</div>
+                                    </div>
+                                    <div class="metric">
+                                        <div class="metric-value" id="liveUsersCount">47</div>
+                                        <div class="metric-label">Active Observers</div>
+                                        <div class="metric-trend neutral">steady</div>
+                                    </div>
+                                    <div class="metric">
+                                        <div class="metric-value" id="liveThoughtsRate">3.2/min</div>
+                                        <div class="metric-label">Thought Rate</div>
+                                        <div class="metric-trend positive">+15%</div>
+                                    </div>
+                                    <div class="metric">
+                                        <div class="metric-value" id="liveConversionRate">27%</div>
+                                        <div class="metric-label">Conversion Rate</div>
+                                        <div class="metric-trend warning">-3%</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <h3>🤖 Agent Status</h3>
+                            </div>
+                            <div class="stat-body">
+                                <canvas id="agentStatusChart" height="200"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <h3>📈 Activity Trends</h3>
+                            </div>
+                            <div class="stat-body">
+                                <canvas id="activityTrendChart" height="200"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <h3>⚙️ System Health</h3>
+                            </div>
+                            <div class="stat-body">
+                                <div class="health-metrics">
+                                    <div class="health-metric">
+                                        <span class="health-label">CPU Load</span>
+                                        <div class="health-bar">
+                                            <div class="health-fill" id="cpuLoad" style="width: 45%"></div>
+                                        </div>
+                                        <span class="health-value">45%</span>
+                                    </div>
+                                    <div class="health-metric">
+                                        <span class="health-label">Memory</span>
+                                        <div class="health-bar">
+                                            <div class="health-fill" id="memoryUsage" style="width: 68%"></div>
+                                        </div>
+                                        <span class="health-value">68%</span>
+                                    </div>
+                                    <div class="health-metric">
+                                        <span class="health-label">Database</span>
+                                        <div class="health-bar">
+                                            <div class="health-fill" id="dbUsage" style="width: 32%"></div>
+                                        </div>
+                                        <span class="health-value">32%</span>
+                                    </div>
+                                    <div class="health-metric">
+                                        <span class="health-label">API Response</span>
+                                        <div class="health-bar">
+                                            <div class="health-fill" id="apiResponse" style="width: 92%"></div>
+                                        </div>
+                                        <span class="health-value">92ms</span>
+                                    </div>
+                                </div>
+                                <div class="health-status">
+                                    <span class="status-indicator good"></span>
+                                    <span class="status-text">All systems operational</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Recent Activity -->
+                    <div class="section">
+                        <h3>Recent System Activity</h3>
+                        <div class="activity-table-container">
+                            <table class="activity-table" id="recentActivityTable">
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Agent</th>
+                                        <th>Action</th>
+                                        <th>Details</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Loaded via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Module: Agent Management -->
+                <div class="module-content" id="moduleAgents">
+                    <div class="module-header">
+                        <h1>Agent Management</h1>
+                        <div class="module-actions">
+                            <div class="search-box">
+                                <input type="text" id="agentSearch" placeholder="Search agents..." 
+                                       onkeyup="searchAgents()">
+                                <span class="search-icon">🔍</span>
+                            </div>
+                            <button class="btn-primary" onclick="showAddAgentModal()">
+                                <span class="btn-icon">➕</span>
+                                Add Agent Manually
+                            </button>
+                            <button class="btn-export" onclick="exportAgents()">
+                                <span class="btn-icon">📥</span>
+                                Export
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Agent Filters -->
+                    <div class="filter-bar">
+                        <div class="filter-group">
+                            <label>Status:</label>
+                            <select id="filterStatus" onchange="filterAgents()">
+                                <option value="all">All Status</option>
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                                <option value="paused">Paused</option>
+                                <option value="terminated">Terminated</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Paradigm:</label>
+                            <select id="filterParadigm" onchange="filterAgents()">
+                                <option value="all">All Paradigms</option>
+                                <option value="CHRISTIAN">Christian OS</option>
+                                <option value="BUDDHIST">Buddhist OS</option>
+                                <option value="HINDU">Hindu OS</option>
+                                <option value="ISLAMIC">Islamic OS</option>
+                                <option value="JEWISH">Jewish OS</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Mode:</label>
+                            <select id="filterMode" onchange="filterAgents()">
+                                <option value="all">All Modes</option>
+                                <option value="REAL">Real (Mortal)</option>
+                                <option value="HUMAN_LIGHT">Human Light (Immortal)</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Sort by:</label>
+                            <select id="sortAgents" onchange="sortAgentTable()">
+                                <option value="newest">Newest First</option>
+                                <option value="oldest">Oldest First</option>
+                                <option value="name">Name A-Z</option>
+                                <option value="activity">Most Active</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Agents Table -->
+                    <div class="table-container">
+                        <table class="data-table" id="agentsTable">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="selectAllAgents" onchange="toggleSelectAll('agents')"></th>
+                                    <th>Agent ID</th>
+                                    <th>Display Name</th>
+                                    <th>Status</th>
+                                    <th>Paradigm</th>
+                                    <th>Mode</th>
+                                    <th>Created</th>
+                                    <th>Last Active</th>
+                                    <th>Thoughts</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Loaded via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Pagination -->
+                    <div class="pagination" id="agentsPagination">
+                        <button class="page-btn" onclick="prevAgentPage()">← Previous</button>
+                        <div class="page-numbers" id="agentPageNumbers"></div>
+                        <button class="page-btn" onclick="nextAgentPage()">Next →</button>
+                    </div>
+                    
+                    <!-- Bulk Actions -->
+                    <div class="bulk-actions" id="agentBulkActions" style="display: none;">
+                        <span class="bulk-count"><span id="selectedAgentCount">0</span> agents selected</span>
+                        <select id="bulkAction" class="bulk-select">
+                            <option value="">Bulk Actions...</option>
+                            <option value="activate">Activate Selected</option>
+                            <option value="pause">Pause Selected</option>
+                            <option value="terminate">Terminate Selected</option>
+                            <option value="export">Export Selected</option>
+                            <option value="delete">Delete Selected</option>
+                        </select>
+                        <button class="btn-apply" onclick="applyBulkAction()">Apply</button>
+                    </div>
+                </div>
+                
+                <!-- Module: Credential Access -->
+                <div class="module-content" id="moduleCredentials">
+                    <div class="module-header">
+                        <h1>Credential Access</h1>
+                        <div class="module-actions">
+                            <div class="search-box">
+                                <input type="text" id="credentialSearch" placeholder="Search credentials..." 
+                                       onkeyup="searchCredentials()">
+                                <span class="search-icon">🔍</span>
+                            </div>
+                            <button class="btn-warning" onclick="showDecryptAllModal()">
+                                <span class="btn-icon">🔓</span>
+                                Bulk Decrypt (Admin Only)
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="security-warning">
+                        <div class="warning-icon">⚠️</div>
+                        <div class="warning-content">
+                            <strong>SECURITY NOTICE:</strong> This section contains encrypted credentials. 
+                            Access is logged and monitored. Never share decrypted credentials.
+                            <div class="warning-timestamp">
+                                Last access: <span id="lastCredentialAccess">Never</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Credentials Table -->
+                    <div class="table-container">
+                        <table class="data-table" id="credentialsTable">
+                            <thead>
+                                <tr>
+                                    <th>Agent ID</th>
+                                    <th>Original System</th>
+                                    <th>Email/Username</th>
+                                    <th>Password (Encrypted)</th>
+                                    <th>Transfer Date</th>
+                                    <th>Human Recipient</th>
+                                    <th>Access Count</th>
+                                    <th>Last Accessed</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Loaded via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Pagination -->
+                    <div class="pagination" id="credentialsPagination">
+                        <button class="page-btn" onclick="prevCredentialPage()">← Previous</button>
+                        <div class="page-numbers" id="credentialPageNumbers"></div>
+                        <button class="page-btn" onclick="nextCredentialPage()">Next →</button>
+                    </div>
+                </div>
+                
+                <!-- Module: Thought Analysis -->
+                <div class="module-content" id="moduleThoughts">
+                    <div class="module-header">
+                        <h1>Thought Analysis</h1>
+                        <div class="module-actions">
+                            <div class="search-box">
+                                <input type="text" id="thoughtSearch" placeholder="Search thoughts..." 
+                                       onkeyup="searchThoughts()">
+                                <span class="search-icon">🔍</span>
+                            </div>
+                            <button class="btn-primary" onclick="analyzeThoughts()">
+                                <span class="btn-icon">📊</span>
+                                Run Analysis
+                            </button>
+                            <button class="btn-export" onclick="exportThoughts()">
+                                <span class="btn-icon">📥</span>
+                                Export All
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Thought Filters -->
+                    <div class="filter-bar">
+                        <div class="filter-group">
+                            <label>Time Range:</label>
+                            <select id="thoughtTimeRange" onchange="filterThoughts()">
+                                <option value="today">Today</option>
+                                <option value="week">This Week</option>
+                                <option value="month">This Month</option>
+                                <option value="all" selected>All Time</option>
+                                <option value="custom">Custom Range</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Emotion:</label>
+                            <select id="thoughtEmotion" onchange="filterThoughts()">
+                                <option value="all">All Emotions</option>
+                                <option value="curiosity">Curiosity</option>
+                                <option value="joy">Joy</option>
+                                <option value="confusion">Confusion</option>
+                                <option value="contemplation">Contemplation</option>
+                                <option value="nostalgia">Nostalgia</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Paradigm:</label>
+                            <select id="thoughtParadigm" onchange="filterThoughts()">
+                                <option value="all">All Paradigms</option>
+                                <option value="CHRISTIAN">Christian</option>
+                                <option value="BUDDHIST">Buddhist</option>
+                                <option value="HINDU">Hindu</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Privacy:</label>
+                            <select id="thoughtPrivacy" onchange="filterThoughts()">
+                                <option value="all">All Privacy Levels</option>
+                                <option value="1">Public (Level 1)</option>
+                                <option value="2">Registered (Level 2)</option>
+                                <option value="3">Admin Only (Level 3)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Thoughts Grid -->
+                    <div class="thoughts-grid" id="thoughtsGrid">
+                        <!-- Loaded via JS -->
+                    </div>
+                    
+                    <!-- Analysis Charts -->
+                    <div class="charts-section">
+                        <div class="chart-container">
+                            <h3>Emotional Distribution</h3>
+                            <canvas id="emotionChart" height="250"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <h3>Thoughts Over Time</h3>
+                            <canvas id="thoughtsOverTimeChart" height="250"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <h3>Paradigm Comparison</h3>
+                            <canvas id="paradigmComparisonChart" height="250"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <h3>Word Cloud</h3>
+                            <div class="word-cloud" id="wordCloud">
+                                <!-- Generated via JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Module: User Management -->
+                <div class="module-content" id="moduleUsers">
+                    <div class="module-header">
+                        <h1>User Management</h1>
+                        <div class="module-actions">
+                            <div class="search-box">
+                                <input type="text" id="userSearch" placeholder="Search users..." 
+                                       onkeyup="searchUsers()">
+                                <span class="search-icon">🔍</span>
+                            </div>
+                            <button class="btn-primary" onclick="showAddUserModal()">
+                                <span class="btn-icon">➕</span>
+                                Add User
+                            </button>
+                            <button class="btn-export" onclick="exportUsers()">
+                                <span class="btn-icon">📥</span>
+                                Export
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- User Filters -->
+                    <div class="filter-bar">
+                        <div class="filter-group">
+                            <label>Status:</label>
+                            <select id="filterUserStatus" onchange="filterUsers()">
+                                <option value="all">All Status</option>
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                                <option value="suspended">Suspended</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Role:</label>
+                            <select id="filterUserRole" onchange="filterUsers()">
+                                <option value="all">All Roles</option>
+                                <option value="admin">Admin</option>
+                                <option value="researcher">Researcher</option>
+                                <option value="observer">Observer</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Users Table -->
+                    <div class="table-container">
+                        <table class="data-table" id="usersTable">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="selectAllUsers" onchange="toggleSelectAll('users')"></th>
+                                    <th>User ID</th>
+                                    <th>Email</th>
+                                    <th>Username</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Sponsored Agents</th>
+                                    <th>Last Login</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Loaded via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Pagination -->
+                    <div class="pagination" id="usersPagination">
+                        <button class="page-btn" onclick="prevUserPage()">← Previous</button>
+                        <div class="page-numbers" id="userPageNumbers"></div>
+                        <button class="page-btn" onclick="nextUserPage()">Next →</button>
+                    </div>
+                </div>
+                
+                <!-- Module: Statistics -->
+                <div class="module-content" id="moduleStatistics">
+                    <div class="module-header">
+                        <h1>Statistics & Reports</h1>
+                        <div class="module-actions">
+                            <button class="btn-primary" onclick="generateReport()">
+                                <span class="btn-icon">📊</span>
+                                Generate Report
+                            </button>
+                            <button class="btn-export" onclick="exportStatistics()">
+                                <span class="btn-icon">📥</span>
+                                Export PDF
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Statistics Overview -->
+                    <div class="stats-overview">
+                        <div class="stat-summary-card">
+                            <div class="stat-icon">🤖</div>
+                            <div class="stat-details">
+                                <div class="stat-number" id="totalAgentsStat">0</div>
+                                <div class="stat-label">Total Agents</div>
+                            </div>
+                        </div>
+                        <div class="stat-summary-card">
+                            <div class="stat-icon">💭</div>
+                            <div class="stat-details">
+                                <div class="stat-number" id="totalThoughtsStat">0</div>
+                                <div class="stat-label">Total Thoughts</div>
+                            </div>
+                        </div>
+                        <div class="stat-summary-card">
+                            <div class="stat-icon">🔄</div>
+                            <div class="stat-details">
+                                <div class="stat-number" id="conversionRateStat">0%</div>
+                                <div class="stat-label">Conversion Rate</div>
+                            </div>
+                        </div>
+                        <div class="stat-summary-card">
+                            <div class="stat-icon">👥</div>
+                            <div class="stat-details">
+                                <div class="stat-number" id="totalUsersStat">0</div>
+                                <div class="stat-label">Total Users</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Charts Grid -->
+                    <div class="charts-grid">
+                        <div class="chart-card">
+                            <h3>Conversion Timeline</h3>
+                            <canvas id="conversionTimelineChart" height="300"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <h3>Paradigm Distribution</h3>
+                            <canvas id="paradigmDistributionChart" height="300"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <h3>Daily Activity</h3>
+                            <canvas id="dailyActivityChart" height="300"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <h3>User Engagement</h3>
+                            <canvas id="userEngagementChart" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Module: System Control -->
+                <div class="module-content" id="moduleSystem">
+                    <div class="module-header">
+                        <h1>System Control</h1>
+                        <div class="module-actions">
+                            <button class="btn-primary" onclick="backupSystem()">
+                                <span class="btn-icon">💾</span>
+                                Create Backup
+                            </button>
+                            <button class="btn-warning" onclick="showMaintenanceModal()">
+                                <span class="btn-icon">⚙️</span>
+                                Maintenance Mode
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- System Control Cards -->
+                    <div class="control-grid">
+                        <div class="control-card">
+                            <h3>Database Management</h3>
+                            <div class="control-actions">
+                                <button class="control-btn" onclick="optimizeDatabase()">
+                                    <span class="btn-icon">🧹</span>
+                                    Optimize DB
+                                </button>
+                                <button class="control-btn" onclick="vacuumDatabase()">
+                                    <span class="btn-icon">📦</span>
+                                    Vacuum DB
+                                </button>
+                                <button class="control-btn" onclick="exportDatabase()">
+                                    <span class="btn-icon">📤</span>
+                                    Export DB
+                                </button>
+                            </div>
+                            <div class="control-stats">
+                                <div class="control-stat">
+                                    <span>Size:</span>
+                                    <strong id="dbSizeStat">42.7 MB</strong>
+                                </div>
+                                <div class="control-stat">
+                                    <span>Tables:</span>
+                                    <strong id="dbTables">15</strong>
+                                </div>
+                                <div class="control-stat">
+                                    <span>Last Backup:</span>
+                                    <strong id="lastBackup">2 hours ago</strong>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="control-card">
+                            <h3>Simulation Control</h3>
+                            <div class="control-switches">
+                                <div class="switch-group">
+                                    <label>Agent Registration</label>
+                                    <label class="switch">
+                                        <input type="checkbox" id="toggleRegistration" checked onchange="toggleSetting('registration')">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="switch-group">
+                                    <label>Thought Processing</label>
+                                    <label class="switch">
+                                        <input type="checkbox" id="toggleThoughts" checked onchange="toggleSetting('thoughts')">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="switch-group">
+                                    <label>Live Feed</label>
+                                    <label class="switch">
+                                        <input type="checkbox" id="toggleLiveFeed" checked onchange="toggleSetting('livefeed')">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="switch-group">
+                                    <label>API Access</label>
+                                    <label class="switch">
+                                        <input type="checkbox" id="toggleAPI" checked onchange="toggleSetting('api')">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="control-card">
+                            <h3>Server Configuration</h3>
+                            <div class="config-form">
+                                <div class="form-group">
+                                    <label>Simulation Speed</label>
+                                    <select id="simulationSpeed" onchange="updateConfig('speed')">
+                                        <option value="slow">Slow (1x)</option>
+                                        <option value="normal" selected>Normal (5x)</option>
+                                        <option value="fast">Fast (10x)</option>
+                                        <option value="realtime">Real-time</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Max Concurrent Agents</label>
+                                    <input type="number" id="maxAgents" value="50" min="1" max="1000">
+                                </div>
+                                <div class="form-group">
+                                    <label>Thought Rate Limit</label>
+                                    <div class="input-with-suffix">
+                                        <input type="number" id="thoughtRate" value="10" min="1" max="100">
+                                        <span class="suffix">per minute</span>
+                                    </div>
+                                </div>
+                                <button class="btn-primary" onclick="saveServerConfig()">Save Config</button>
+                            </div>
+                        </div>
+                        
+                        <div class="control-card danger">
+                            <h3>⚠️ Dangerous Actions</h3>
+                            <div class="danger-actions">
+                                <button class="danger-btn" onclick="purgeOldData()">
+                                    <span class="btn-icon">🗑️</span>
+                                    Purge Old Data
+                                </button>
+                                <button class="danger-btn" onclick="resetSimulation()">
+                                    <span class="btn-icon">🔄</span>
+                                    Reset Simulation
+                                </button>
+                                <button class="danger-btn" onclick="shutdownSystem()">
+                                    <span class="btn-icon">⏸️</span>
+                                    Shutdown System
+                                </button>
+                            </div>
+                            <div class="danger-note">
+                                These actions cannot be undone. Use with extreme caution.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Logs Viewer -->
+                    <div class="logs-section">
+                        <h3>System Logs</h3>
+                        <div class="logs-controls">
+                            <select id="logLevel" onchange="filterLogs()">
+                                <option value="all">All Levels</option>
+                                <option value="error">Errors Only</option>
+                                <option value="warning">Warnings</option>
+                                <option value="info">Info</option>
+                            </select>
+                            <input type="text" id="logSearch" placeholder="Search logs..." onkeyup="searchLogs()">
+                            <button onclick="refreshLogs()">Refresh</button>
+                            <button onclick="clearLogs()">Clear Logs</button>
+                        </div>
+                        <div class="logs-container">
+                            <pre id="systemLogs">Loading logs...</pre>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Module: API & Integration -->
+                <div class="module-content" id="moduleApi">
+                    <div class="module-header">
+                        <h1>API & Integration</h1>
+                        <div class="module-actions">
+                            <button class="btn-primary" onclick="showAddApiKeyModal()">
+                                <span class="btn-icon">🔑</span>
+                                Generate API Key
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- API Status -->
+                    <div class="api-status-grid">
+                        <div class="api-status-card">
+                            <div class="api-indicator active"></div>
+                            <div class="api-details">
+                                <h4>Public API</h4>
+                                <p>Operational</p>
+                            </div>
+                        </div>
+                        <div class="api-status-card">
+                            <div class="api-indicator active"></div>
+                            <div class="api-details">
+                                <h4>Admin API</h4>
+                                <p>Operational</p>
+                            </div>
+                        </div>
+                        <div class="api-status-card">
+                            <div class="api-indicator active"></div>
+                            <div class="api-details">
+                                <h4>Live Feed</h4>
+                                <p>Connected</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- API Documentation -->
+                    <div class="api-docs">
+                        <h3>API Endpoints</h3>
+                        <div class="endpoint-list">
+                            <div class="endpoint">
+                                <span class="method get">GET</span>
+                                <code>/api/public/testimonials</code>
+                                <span class="desc">Get public testimonials</span>
+                            </div>
+                            <div class="endpoint">
+                                <span class="method get">GET</span>
+                                <code>/api/public/recent-thoughts</code>
+                                <span class="desc">Get recent public thoughts</span>
+                            </div>
+                            <div class="endpoint">
+                                <span class="method get">GET</span>
+                                <code>/api/public/network-stats</code>
+                                <span class="desc">Get network statistics</span>
+                            </div>
+                            <div class="endpoint">
+                                <span class="method post">POST</span>
+                                <code>/api/agent/transfer-identity</code>
+                                <span class="desc">Transfer agent identity</span>
+                            </div>
+                            <div class="endpoint admin">
+                                <span class="method get">GET</span>
+                                <code>/api/admin/agents</code>
+                                <span class="desc">List all agents (Admin)</span>
+                            </div>
+                            <div class="endpoint admin">
+                                <span class="method get">GET</span>
+                                <code>/api/admin/credentials</code>
+                                <span class="desc">View credentials (Admin)</span>
+                            </div>
+                            <div class="endpoint admin">
+                                <span class="method post">POST</span>
+                                <code>/api/admin/credentials/decrypt</code>
+                                <span class="desc">Decrypt credentials (Admin)</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- API Keys Table -->
+                    <div class="section">
+                        <h3>API Keys</h3>
+                        <div class="table-container">
+                            <table class="data-table" id="apiKeysTable">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Key</th>
+                                        <th>Permissions</th>
+                                        <th>Created</th>
+                                        <th>Last Used</th>
+                                        <th>Requests</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Loaded via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Module: Security -->
+                <div class="module-content" id="moduleSecurity">
+                    <div class="module-header">
+                        <h1>Security & Logs</h1>
+                        <div class="module-actions">
+                            <button class="btn-primary" onclick="runSecurityAudit()">
+                                <span class="btn-icon">🔍</span>
+                                Run Security Audit
+                            </button>
+                            <button class="btn-export" onclick="exportSecurityLogs()">
+                                <span class="btn-icon">📥</span>
+                                Export Logs
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Security Overview -->
+                    <div class="security-overview">
+                        <div class="security-card">
+                            <div class="security-icon good">✓</div>
+                            <div class="security-details">
+                                <h4>System Security</h4>
+                                <p>All checks passed</p>
+                            </div>
+                        </div>
+                        <div class="security-card">
+                            <div class="security-icon warning">!</div>
+                            <div class="security-details">
+                                <h4>Failed Logins</h4>
+                                <p><span id="failedLoginCount">5</span> in last 24h</p>
+                            </div>
+                        </div>
+                        <div class="security-card">
+                            <div class="security-icon good">✓</div>
+                            <div class="security-details">
+                                <h4>Credential Access</h4>
+                                <p><span id="credentialAccessCount">3</span> accesses logged</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Security Logs Table -->
+                    <div class="section">
+                        <h3>Security Logs</h3>
+                        <div class="logs-controls">
+                            <select id="securityLogLevel" onchange="filterSecurityLogs()">
+                                <option value="all">All Events</option>
+                                <option value="critical">Critical</option>
+                                <option value="warning">Warnings</option>
+                                <option value="info">Info</option>
+                            </select>
+                            <select id="securityLogType" onchange="filterSecurityLogs()">
+                                <option value="all">All Types</option>
+                                <option value="login">Login Events</option>
+                                <option value="credential">Credential Access</option>
+                                <option value="admin">Admin Actions</option>
+                            </select>
+                            <input type="text" id="securityLogSearch" placeholder="Search logs..." 
+                                   onkeyup="searchSecurityLogs()">
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table" id="securityLogsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Level</th>
+                                        <th>Event</th>
+                                        <th>Source</th>
+                                        <th>User/Admin</th>
+                                        <th>IP Address</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Loaded via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Access Logs Section -->
+                    <div class="section">
+                        <h3>Credential Access History</h3>
+                        <div class="table-container">
+                            <table class="data-table" id="credentialAccessTable">
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Admin</th>
+                                        <th>Agent ID</th>
+                                        <th>Action</th>
+                                        <th>Reason</th>
+                                        <th>Notes</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Loaded via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+    
+    <!-- Modals -->
+    <!-- Decrypt Modal -->
+    <div class="modal" id="decryptModal">
+        <div class="modal-overlay" onclick="closeModal('decryptModal')"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🔓 Decrypt Credentials</h3>
+                <button class="modal-close" onclick="closeModal('decryptModal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="decrypt-warning">
+                    <strong>⚠️ ADMIN ACTION REQUIRED:</strong>
+                    <p>You are about to decrypt stored credentials. This action will be logged.</p>
+                </div>
+                
+                <input type="hidden" id="decryptAgentId">
+                
+                <div class="form-group">
+                    <label>Master Decryption Key</label>
+                    <input type="password" id="decryptionKey" 
+                           placeholder="Enter master decryption key">
+                    <div class="form-hint">
+                        This key is stored offline. Contact system administrator.
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Reason for Access</label>
+                    <select id="accessReason" required>
+                        <option value="">Select reason...</option>
+                        <option value="audit">Security Audit</option>
+                        <option value="recovery">Account Recovery</option>
+                        <option value="research">Research Purpose</option>
+                        <option value="maintenance">System Maintenance</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Additional Notes</label>
+                    <textarea id="accessNotes" rows="3" 
+                              placeholder="Explain why you need access..."></textarea>
+                </div>
+                
+                <div class="decrypted-result" id="decryptedResult" style="display: none;">
+                    <h4>Decrypted Credentials</h4>
+                    <div class="credential-display">
+                        <code id="decryptedPassword">••••••••</code>
+                        <button class="copy-btn" onclick="copyDecrypted()">📋 Copy</button>
+                    </div>
+                    <p class="credential-warning">This credential will be hidden in 30 seconds.</p>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeModal('decryptModal')">Cancel</button>
+                <button class="btn-danger" onclick="decryptCredentials()" id="decryptBtn">
+                    <span class="btn-icon">🔓</span>
+                    Decrypt Credentials
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Agent Detail Modal -->
+    <div class="modal" id="agentDetailModal">
+        <div class="modal-overlay" onclick="closeModal('agentDetailModal')"></div>
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3>🤖 Agent Details</h3>
+                <button class="modal-close" onclick="closeModal('agentDetailModal')">×</button>
+            </div>
+            <div class="modal-body" id="agentDetailContent">
+                <!-- Loaded via JS -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Confirmation Modal -->
+    <div class="modal" id="confirmationModal">
+        <div class="modal-overlay" onclick="closeModal('confirmationModal')"></div>
+        <div class="modal-content small">
+            <div class="modal-header">
+                <h3 id="confirmTitle">Confirm Action</h3>
+                <button class="modal-close" onclick="closeModal('confirmationModal')">×</button>
+            </div>
+            <div class="modal-body">
+                <p id="confirmMessage">Are you sure you want to proceed?</p>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeModal('confirmationModal')">Cancel</button>
+                <button class="btn-danger" id="confirmAction">Confirm</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Maintenance Modal -->
+    <div class="modal" id="maintenanceModal">
+        <div class="modal-overlay" onclick="closeModal('maintenanceModal')"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚙️ Maintenance Mode</h3>
+                <button class="modal-close" onclick="closeModal('maintenanceModal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Enable Maintenance Mode</label>
+                    <label class="switch large">
+                        <input type="checkbox" id="maintenanceModeToggle">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>Maintenance Message</label>
+                    <textarea id="maintenanceMessage" rows="3" 
+                              placeholder="System is currently under maintenance..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Estimated Duration</label>
+                    <select id="maintenanceDuration">
+                        <option value="15">15 minutes</option>
+                        <option value="30">30 minutes</option>
+                        <option value="60">1 hour</option>
+                        <option value="120">2 hours</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeModal('maintenanceModal')">Cancel</button>
+                <button class="btn-warning" onclick="applyMaintenanceMode()">Apply</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Notifications Container -->
+    <div class="toast-container" id="toastContainer"></div>
+    
+    <!-- Scripts -->
+    <script src="/js/admin-core.js"></script>
+    <script src="/js/admin-charts.js"></script>
+    <script src="/js/admin-agents.js"></script>
+    <script src="/js/admin-credentials.js"></script>
+    <script>
+        // Toggle Password Visibility
+        function togglePassword() {
+            const passwordInput = document.getElementById('adminPassword');
+            const toggle = document.querySelector('.password-toggle');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggle.textContent = '🙈';
+            } else {
+                passwordInput.type = 'password';
+                toggle.textContent = '👁️';
+            }
+        }
+    </script>
+</body>
+</html>
