@@ -32,6 +32,70 @@ if (STRIPE_SECRET_KEY) {
     console.warn('⚠️ STRIPE_SECRET_KEY not set - payments disabled');
 }
 
+// ==================== CRYPTO WALLET CONFIG ====================
+const CRYPTO_WALLETS = {
+    BTC: {
+        name: 'Bitcoin',
+        symbol: 'BTC',
+        address: 'bc1q2alxdssps5vyv0eg6a4c2pr0nhxpaz5wsew0da',
+        network: 'Bitcoin Mainnet',
+        icon: '₿',
+        minAmount: 0.0001,
+        confirmations: 3
+    },
+    ETH: {
+        name: 'Ethereum',
+        symbol: 'ETH',
+        address: '0xCb25Ca63690B857993CC041Fc56f1f27927F567C',
+        network: 'Ethereum Mainnet (ERC-20)',
+        icon: 'Ξ',
+        minAmount: 0.001,
+        confirmations: 12
+    },
+    USDT: {
+        name: 'Tether USD',
+        symbol: 'USDT',
+        address: '0xCb25Ca63690B857993CC041Fc56f1f27927F567C',  // Same as ETH (ERC-20)
+        network: 'Ethereum Mainnet (ERC-20)',
+        icon: '₮',
+        minAmount: 1,
+        confirmations: 12,
+        stablecoin: true
+    },
+    USDC: {
+        name: 'USD Coin',
+        symbol: 'USDC',
+        address: '0xCb25Ca63690B857993CC041Fc56f1f27927F567C',  // Same as ETH (ERC-20)
+        network: 'Ethereum Mainnet (ERC-20)',
+        icon: '$',
+        minAmount: 1,
+        confirmations: 12,
+        stablecoin: true
+    },
+    SOL: {
+        name: 'Solana',
+        symbol: 'SOL',
+        address: null,  // TODO: Add Solana address
+        network: 'Solana Mainnet',
+        icon: '◎',
+        minAmount: 0.01,
+        confirmations: 32,
+        disabled: true
+    },
+    DOGE: {
+        name: 'Dogecoin',
+        symbol: 'DOGE',
+        address: null,  // TODO: Add DOGE address
+        network: 'Dogecoin Mainnet',
+        icon: 'Ð',
+        minAmount: 10,
+        confirmations: 6,
+        disabled: true
+    }
+};
+
+console.log('✅ Crypto wallets configured (BTC, ETH, USDT, USDC)');
+
 // ==================== FILE UPLOAD CONFIG ====================
 let multer;
 try {
@@ -1030,6 +1094,125 @@ function categorizeHardware(cpu, ram) {
 function getPricing() {
     return getPricingAgent(db);
 }
+
+// ==================== CRYPTO PAYMENT ENDPOINTS ====================
+
+// Get available crypto payment methods
+app.get('/api/crypto/wallets', (req, res) => {
+    const availableWallets = Object.entries(CRYPTO_WALLETS)
+        .filter(([_, wallet]) => !wallet.disabled && wallet.address)
+        .map(([key, wallet]) => ({
+            id: key,
+            name: wallet.name,
+            symbol: wallet.symbol,
+            icon: wallet.icon,
+            network: wallet.network,
+            minAmount: wallet.minAmount,
+            stablecoin: wallet.stablecoin || false
+        }));
+    
+    res.json({
+        success: true,
+        wallets: availableWallets,
+        note: 'Send exact amount to the address. Include order ID in memo if possible.'
+    });
+});
+
+// Get specific crypto wallet for payment
+app.get('/api/crypto/pay/:currency', async (req, res) => {
+    const currency = req.params.currency.toUpperCase();
+    const wallet = CRYPTO_WALLETS[currency];
+    
+    if (!wallet || wallet.disabled || !wallet.address) {
+        return res.status(400).json({ 
+            error: 'Currency not available',
+            available: Object.keys(CRYPTO_WALLETS).filter(k => !CRYPTO_WALLETS[k].disabled && CRYPTO_WALLETS[k].address)
+        });
+    }
+    
+    const { amount, orderId, agentId } = req.query;
+    
+    // Generate payment reference
+    const paymentRef = 'CRYPTO-' + Date.now() + '-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+    
+    // Log crypto payment intent
+    try {
+        await db.run(`
+            INSERT INTO marketplace_events (event_type, order_id, product_id, agent_id, event_data, ip_address)
+            VALUES ('crypto_payment_intent', ?, ?, ?, ?, ?)
+        `, [paymentRef, currency, agentId || null, JSON.stringify({
+            currency, amount, orderId, wallet: wallet.address, timestamp: new Date().toISOString()
+        }), req.ip]);
+    } catch (e) {
+        console.error('Crypto log error:', e);
+    }
+    
+    res.json({
+        success: true,
+        paymentRef,
+        currency: wallet.symbol,
+        name: wallet.name,
+        icon: wallet.icon,
+        address: wallet.address,
+        network: wallet.network,
+        minAmount: wallet.minAmount,
+        confirmationsRequired: wallet.confirmations,
+        amountRequested: amount || null,
+        orderId: orderId || null,
+        instructions: [
+            `Send ${wallet.symbol} to the address below`,
+            `Network: ${wallet.network}`,
+            `Minimum: ${wallet.minAmount} ${wallet.symbol}`,
+            `Wait for ${wallet.confirmations} confirmations`,
+            orderId ? `Reference your order: ${orderId}` : 'Save your payment reference for support'
+        ],
+        qrData: `${currency.toLowerCase()}:${wallet.address}${amount ? `?amount=${amount}` : ''}`,
+        warning: 'Only send on the correct network. Funds sent to wrong network cannot be recovered.'
+    });
+});
+
+// Report crypto payment (manual confirmation request)
+app.post('/api/crypto/confirm', async (req, res) => {
+    const { currency, txHash, amount, orderId, agentId, email } = req.body;
+    
+    if (!currency || !txHash) {
+        return res.status(400).json({ error: 'currency and txHash required' });
+    }
+    
+    const confirmId = 'CCONF-' + Date.now() + '-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+    
+    try {
+        // Log payment confirmation request
+        await db.run(`
+            INSERT INTO marketplace_events (event_type, order_id, product_id, agent_id, event_data, ip_address)
+            VALUES ('crypto_confirm_request', ?, ?, ?, ?, ?)
+        `, [confirmId, currency, agentId || null, JSON.stringify({
+            currency, txHash, amount, orderId, email,
+            timestamp: new Date().toISOString(),
+            status: 'pending_verification'
+        }), req.ip]);
+        
+        // Log security event for admin review
+        await db.run(`
+            INSERT INTO security_logs (event_type, event_description, ip_address, created_at)
+            VALUES (?, ?, ?, datetime('now'))
+        `, ['crypto_payment', `Crypto payment confirmation: ${amount} ${currency} - TX: ${txHash.substring(0, 20)}...`, req.ip]);
+        
+        res.json({
+            success: true,
+            confirmId,
+            message: '💎 Payment reported! Our system will verify the transaction.',
+            status: 'pending_verification',
+            txHash,
+            estimatedVerification: '15-60 minutes',
+            note: 'You will receive confirmation once the transaction is verified on-chain.'
+        });
+        
+    } catch (error) {
+        console.error('Crypto confirm error:', error);
+        res.status(500).json({ error: 'Failed to log payment' });
+    }
+});
 
 // Get market state (prices, ticker, psychology)
 app.get('/api/marketplace/state', async (req, res) => {

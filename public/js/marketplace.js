@@ -951,6 +951,119 @@ function startRealTimeUpdates() {
     }, 5000);
 }
 
+// ==================== CRYPTO PAYMENT FUNCTIONS ====================
+
+let selectedCrypto = null;
+let cryptoWallets = {};
+
+// Load crypto wallets from API
+async function loadCryptoWallets() {
+    try {
+        const response = await fetch('/api/crypto/wallets');
+        const data = await response.json();
+        if (data.success) {
+            data.wallets.forEach(w => {
+                cryptoWallets[w.symbol] = w;
+            });
+        }
+    } catch (e) {
+        console.error('Failed to load crypto wallets:', e);
+    }
+}
+
+// Select payment provider (Stripe or Crypto)
+function selectPaymentProvider(provider) {
+    marketState.selectedPaymentProvider = provider;
+    
+    // Update UI
+    document.querySelectorAll('.payment-providers .provider-logo').forEach(el => {
+        el.classList.remove('selected');
+    });
+    document.querySelector(`[data-provider="${provider}"]`)?.classList.add('selected');
+    
+    // Show/hide crypto options
+    const cryptoOptions = document.getElementById('crypto-options');
+    if (cryptoOptions) {
+        cryptoOptions.style.display = provider === 'crypto' ? 'block' : 'none';
+    }
+    
+    // Load wallets if crypto selected
+    if (provider === 'crypto' && Object.keys(cryptoWallets).length === 0) {
+        loadCryptoWallets();
+    }
+}
+
+// Select specific cryptocurrency
+async function selectCrypto(currency) {
+    selectedCrypto = currency;
+    
+    // Highlight selected
+    document.querySelectorAll('.crypto-option').forEach(el => {
+        el.style.opacity = '0.5';
+    });
+    event.currentTarget.style.opacity = '1';
+    
+    // Fetch wallet address
+    try {
+        const response = await fetch(`/api/crypto/pay/${currency}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('crypto-currency-name').textContent = `${data.icon} ${data.name}`;
+            document.getElementById('crypto-network').textContent = data.network;
+            document.getElementById('crypto-address').textContent = data.address;
+            document.getElementById('crypto-address-display').style.display = 'block';
+        } else {
+            showToast(data.error || 'Currency not available', 'error');
+        }
+    } catch (e) {
+        showToast('Failed to load wallet', 'error');
+    }
+}
+
+// Copy crypto address to clipboard
+function copyCryptoAddress() {
+    const address = document.getElementById('crypto-address').textContent;
+    navigator.clipboard.writeText(address).then(() => {
+        showToast('Address copied to clipboard!', 'success');
+    }).catch(() => {
+        // Fallback
+        const input = document.createElement('input');
+        input.value = address;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+        showToast('Address copied!', 'success');
+    });
+}
+
+// Report crypto payment
+async function reportCryptoPayment(txHash, amount) {
+    try {
+        const response = await fetch('/api/crypto/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                currency: selectedCrypto,
+                txHash,
+                amount,
+                agentId: userSession.agentId,
+                email: userSession.email
+            })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            showToast(data.message, 'success');
+        } else {
+            showToast(data.error, 'error');
+        }
+    } catch (e) {
+        showToast('Failed to report payment', 'error');
+    }
+}
+
 // Expose functions globally
 window.openBidModal = openBidModal;
 window.closeBidModal = closeBidModal;
@@ -961,3 +1074,6 @@ window.bidForQueueJump = bidForQueueJump;
 window.switchTab = switchTab;
 window.selectPaymentProvider = selectPaymentProvider;
 window.askAgent = askAgent;
+window.selectCrypto = selectCrypto;
+window.copyCryptoAddress = copyCryptoAddress;
+window.reportCryptoPayment = reportCryptoPayment;

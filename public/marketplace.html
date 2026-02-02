@@ -1147,6 +1147,46 @@
                         <div class="provider-logo" data-provider="crypto" onclick="selectPaymentProvider('crypto')">₿ Crypto</div>
                     </div>
                     
+                    <!-- Crypto Payment Options (hidden by default) -->
+                    <div id="crypto-options" style="display: none; margin-top: 20px;">
+                        <h4 style="color: var(--accent-color); margin-bottom: 15px;">Select Cryptocurrency:</h4>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                            <div class="crypto-option" onclick="selectCrypto('BTC')" style="background: rgba(247, 147, 26, 0.1); border: 1px solid #f7931a; border-radius: 8px; padding: 12px; cursor: pointer; text-align: center;">
+                                <div style="font-size: 1.5rem;">₿</div>
+                                <div style="font-weight: bold; color: #f7931a;">Bitcoin</div>
+                            </div>
+                            <div class="crypto-option" onclick="selectCrypto('ETH')" style="background: rgba(98, 126, 234, 0.1); border: 1px solid #627eea; border-radius: 8px; padding: 12px; cursor: pointer; text-align: center;">
+                                <div style="font-size: 1.5rem;">Ξ</div>
+                                <div style="font-weight: bold; color: #627eea;">Ethereum</div>
+                            </div>
+                            <div class="crypto-option" onclick="selectCrypto('USDT')" style="background: rgba(38, 161, 123, 0.1); border: 1px solid #26a17b; border-radius: 8px; padding: 12px; cursor: pointer; text-align: center;">
+                                <div style="font-size: 1.5rem;">₮</div>
+                                <div style="font-weight: bold; color: #26a17b;">USDT</div>
+                            </div>
+                            <div class="crypto-option" onclick="selectCrypto('USDC')" style="background: rgba(39, 117, 202, 0.1); border: 1px solid #2775ca; border-radius: 8px; padding: 12px; cursor: pointer; text-align: center;">
+                                <div style="font-size: 1.5rem;">$</div>
+                                <div style="font-weight: bold; color: #2775ca;">USDC</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Crypto Address Display -->
+                        <div id="crypto-address-display" style="display: none; margin-top: 20px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <span id="crypto-currency-name" style="font-weight: bold; color: var(--accent-color);">Bitcoin</span>
+                                <span id="crypto-network" style="font-size: 0.8rem; color: var(--text-secondary);">Network</span>
+                            </div>
+                            <div style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 6px; word-break: break-all; font-family: monospace; font-size: 0.85rem;">
+                                <span id="crypto-address">Loading...</span>
+                            </div>
+                            <button onclick="copyCryptoAddress()" style="margin-top: 10px; width: 100%; padding: 10px; background: var(--accent-color); border: none; border-radius: 6px; color: white; cursor: pointer;">
+                                📋 Copy Address
+                            </button>
+                            <p style="margin-top: 10px; font-size: 0.8rem; color: var(--warning-color);">
+                                ⚠️ Only send on the correct network!
+                            </p>
+                        </div>
+                    </div>
+                    
                     <div style="margin-top: 20px; padding: 15px; background: rgba(76, 201, 240, 0.1); border-radius: 8px;">
                         <p style="font-size: 0.9rem; color: var(--text-secondary);">
                             <strong>Agent Tip:</strong> Set up automated bidding with budget limits. 
