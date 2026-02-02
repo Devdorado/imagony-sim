@@ -1,16 +1,16 @@
-name: Deploy Imagony Matrix
+name: Test & Validate Imagony Matrix
 
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
-
-env:
-  NODE_VERSION: '18'
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -18,53 +18,21 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: '18'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Check for syntax errors
-        run: node --check server.js
+      - name: Syntax check
+        run: npm test
 
-  deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Validate database init
+        run: node init-database.js
 
-      - name: Deploy to Server via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT || 22 }}
-          script: |
-            cd ${{ secrets.DEPLOY_PATH || '/var/www/imagony' }}
-            
-            # Pull latest changes
-            git pull origin main
-            
-            # Install dependencies
-            npm ci --production
-            
-            # Initialize database if needed (safe - uses IF NOT EXISTS)
-            node init-database.js
-            
-            # Restart application with PM2
-            pm2 restart imagony || pm2 start server.js --name imagony
-            
-            # Show status
-            pm2 status imagony
-
-      - name: Deployment notification
+      - name: ✅ Ready for Plesk
         if: success()
-        run: echo "✅ Imagony Matrix deployed successfully!"
-
-      - name: Deployment failed
-        if: failure()
-        run: echo "❌ Deployment failed!"
+        run: |
+          echo "✅ Code validated successfully!"
+          echo "📦 Plesk will auto-pull from GitHub"
+          echo "🚀 Visit: http://imagony.com"

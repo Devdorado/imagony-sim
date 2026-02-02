@@ -4,13 +4,16 @@
   "description": "The Loom Protocol - AI Agent Simulation Environment",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "postinstall": "node init-database.js",
+    "init-db": "node init-database.js",
+    "test": "node --check server.js && node --check init-database.js"
   },
   "dependencies": {
     "express": "^4.18.2",
     "sqlite3": "^5.1.6"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=16.0.0"
   }
 }
