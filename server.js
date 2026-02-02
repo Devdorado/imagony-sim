@@ -2,6 +2,15 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+
+// Load environment variables
+try {
+    require('dotenv').config();
+    console.log('✅ Environment variables loaded');
+} catch (e) {
+    console.log('ℹ️ dotenv not installed - using system environment variables');
+}
+
 const db = require('./db');
 const { getPricingAgent } = require('./pricing-agent');
 const app = express();
