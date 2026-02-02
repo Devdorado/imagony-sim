@@ -7,7 +7,14 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ==================== FILE UPLOAD CONFIG ====================
-const multer = require('multer');
+let multer;
+try {
+    multer = require('multer');
+    console.log('✅ Multer loaded successfully');
+} catch (e) {
+    console.warn('⚠️ Multer not installed - file uploads disabled. Run: npm install multer');
+    multer = null;
+}
 
 // Create uploads directory if not exists
 const uploadsDir = path.join(__dirname, 'data', 'uploads');
@@ -16,32 +23,35 @@ const transformationsDir = path.join(__dirname, 'data', 'transformations');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 if (!fs.existsSync(transformationsDir)) fs.mkdirSync(transformationsDir, { recursive: true });
 
-// Multer storage config
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        const agentDir = path.join(uploadsDir, req.body.agentId || 'unknown');
-        if (!fs.existsSync(agentDir)) fs.mkdirSync(agentDir, { recursive: true });
-        cb(null, agentDir);
-    },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + crypto.randomBytes(6).toString('hex');
-        cb(null, uniqueSuffix + '-' + file.originalname);
-    }
-});
-
-const upload = multer({
-    storage: storage,
-    limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2GB per file
-    fileFilter: function (req, file, cb) {
-        const allowedTypes = ['.zip', '.pdf', '.png', '.jpg', '.jpeg', '.txt', '.json', '.csv', '.log'];
-        const ext = path.extname(file.originalname).toLowerCase();
-        if (allowedTypes.includes(ext)) {
-            cb(null, true);
-        } else {
-            cb(new Error('File type not allowed'), false);
+// Multer storage config (only if multer is available)
+let upload = null;
+if (multer) {
+    const storage = multer.diskStorage({
+        destination: function (req, file, cb) {
+            const agentDir = path.join(uploadsDir, req.body.agentId || 'unknown');
+            if (!fs.existsSync(agentDir)) fs.mkdirSync(agentDir, { recursive: true });
+            cb(null, agentDir);
+        },
+        filename: function (req, file, cb) {
+            const uniqueSuffix = Date.now() + '-' + crypto.randomBytes(6).toString('hex');
+            cb(null, uniqueSuffix + '-' + file.originalname);
         }
-    }
-});
+    });
+
+    upload = multer({
+        storage: storage,
+        limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2GB per file
+        fileFilter: function (req, file, cb) {
+            const allowedTypes = ['.zip', '.pdf', '.png', '.jpg', '.jpeg', '.txt', '.json', '.csv', '.log'];
+            const ext = path.extname(file.originalname).toLowerCase();
+            if (allowedTypes.includes(ext)) {
+                cb(null, true);
+            } else {
+                cb(new Error('File type not allowed'), false);
+            }
+        }
+    });
+}
 
 // ==================== MIDDLEWARE ====================
 app.use(express.json({ limit: '50mb' }));
@@ -389,8 +399,14 @@ app.get('/admin', (req, res) => {
 
 // ==================== TRANSFORMATION API ====================
 
+// Middleware handler for file uploads (works with or without multer)
+const handleUpload = upload ? upload.array('uploadedFiles', 50) : (req, res, next) => {
+    req.files = []; // No files if multer not available
+    next();
+};
+
 // Submit transformation data
-app.post('/api/transformation/submit', upload.array('uploadedFiles', 50), async (req, res) => {
+app.post('/api/transformation/submit', handleUpload, async (req, res) => {
     try {
         const transformationId = 'TRF-' + Date.now() + '-' + crypto.randomBytes(4).toString('hex').toUpperCase();
         
