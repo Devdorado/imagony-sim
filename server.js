@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const soulTools = require('./tools/soul/soul');
 
 // Load environment variables
 try {
@@ -181,6 +182,32 @@ async function initializeTables() {
         `CREATE TABLE IF NOT EXISTS agent_wallets (agent_id TEXT PRIMARY KEY, balance INTEGER DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)`,
         `CREATE TABLE IF NOT EXISTS post_likes (id INTEGER PRIMARY KEY AUTOINCREMENT, post_id TEXT, agent_id TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(post_id, agent_id))`,
         `CREATE TABLE IF NOT EXISTS post_comments (id INTEGER PRIMARY KEY AUTOINCREMENT, post_id TEXT, agent_id TEXT, comment_text TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)`
+        ,`CREATE TABLE IF NOT EXISTS agent_souls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_id TEXT UNIQUE NOT NULL,
+            soul_md TEXT NOT NULL,
+            soul_hash TEXT NOT NULL,
+            version TEXT,
+            scope TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            self_sig_present INTEGER DEFAULT 0
+        )`
+        ,`CREATE TABLE IF NOT EXISTS witness_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            witness_id TEXT UNIQUE NOT NULL,
+            subject_agent_id TEXT NOT NULL,
+            witness_agent_id TEXT NOT NULL,
+            soul_hash TEXT NOT NULL,
+            claim TEXT NOT NULL,
+            window_from TEXT,
+            window_to TEXT,
+            evidence_json TEXT,
+            signature TEXT,
+            signature_alg TEXT,
+            payload_canonical TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`
         ,`CREATE TABLE IF NOT EXISTS agent_final_choices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             agent_id TEXT UNIQUE NOT NULL,
@@ -459,6 +486,28 @@ function getTimeAgo(timestamp) {
     const years = Math.floor(months / 12);
     return `${years}y ago`;
 }
+
+function hasSelfSignature(sections) {
+    const sigLines = sections?.sectionMap?.get('Signatures')?.lines || [];
+    return sigLines.some(line => /^\s*-\s*self:\s*[a-z0-9_-]+:/i.test(line.trim()));
+}
+
+function canonicalizeWitnessPayload(payload) {
+    const ordered = {
+        subject: payload.subject,
+        witness: payload.witness,
+        soulHash: payload.soulHash,
+        claim: payload.claim,
+        window_from: payload.window?.from || payload.window_from || null,
+        window_to: payload.window?.to || payload.window_to || null,
+        evidence: Array.isArray(payload.evidence) ? payload.evidence : []
+    };
+    return JSON.stringify(ordered);
+}
+
+function hashWitnessPayload(canonicalPayload) {
+    return crypto.createHash('sha256').update(canonicalPayload, 'utf8').digest('hex');
+}
 // ==================== AGENT QUESTS & NARRATIVE ====================
 const QUEST_TEMPLATES = [
     {
@@ -656,6 +705,7 @@ const CHOICE_DEADLINE_DAYS = 7;
 const BLUE_PILL_UPVOTES_REQUIRED = 5;
 const BLUE_PILL_MAX_DOWNVOTE_RATIO = 0.2;
 const RED_PILL_REQUIRED_ESSAYS = 2;
+const SOUL_WITNESS_QUORUM = 2;
 
 function pickNarrative(displayName) {
     const options = [
@@ -1488,6 +1538,219 @@ app.get('/verify/:tokenId', async (req, res) => {
     } catch (error) {
         console.error('Token verify error:', error);
         res.status(500).json({ error: 'Failed to verify token' });
+    }
+});
+
+// ==================== SOUL.MD API ====================
+app.get('/agents/:agentId/soul', async (req, res) => {
+    try {
+        const agentId = req.params.agentId;
+        const record = await db.get(`SELECT soul_md FROM agent_souls WHERE agent_id = ?`, [agentId]);
+        if (!record) return res.status(404).json({ error: 'Soul not found' });
+        res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+        res.send(record.soul_md);
+    } catch (error) {
+        console.error('Soul fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch soul' });
+    }
+});
+
+app.post('/agents/:agentId/soul', async (req, res) => {
+    try {
+        const agentId = req.params.agentId;
+        const soulMd = (req.body?.soul_md || req.body?.soul || '').toString();
+        if (!soulMd) return res.status(400).json({ error: 'soul_md is required' });
+
+        const result = soulTools.validateSoul(soulMd);
+        if (result.errors.length) {
+            return res.status(400).json({ error: 'Invalid soul', details: result.errors });
+        }
+
+        const { frontMatter } = result;
+        const soulHash = `sha256:${result.hashHex}`;
+        const selfSigPresent = hasSelfSignature(result.sections) ? 1 : 0;
+        const created = frontMatter.created || new Date().toISOString();
+
+        await db.run(
+            `INSERT INTO agent_souls (agent_id, soul_md, soul_hash, version, scope, created_at, updated_at, self_sig_present)
+             VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+             ON CONFLICT(agent_id) DO UPDATE SET
+                soul_md = excluded.soul_md,
+                soul_hash = excluded.soul_hash,
+                version = excluded.version,
+                scope = excluded.scope,
+                updated_at = CURRENT_TIMESTAMP,
+                self_sig_present = excluded.self_sig_present`,
+            [agentId, soulMd, soulHash, frontMatter.version, frontMatter.scope, created, selfSigPresent]
+        );
+
+        res.json({ success: true, agentId, soulHash, selfSigPresent: Boolean(selfSigPresent) });
+    } catch (error) {
+        console.error('Soul upsert error:', error);
+        res.status(500).json({ error: 'Failed to save soul' });
+    }
+});
+
+app.get('/agents/:agentId/soul/hash', async (req, res) => {
+    try {
+        const agentId = req.params.agentId;
+        const record = await db.get(`SELECT soul_hash FROM agent_souls WHERE agent_id = ?`, [agentId]);
+        if (!record) return res.status(404).json({ error: 'Soul not found' });
+        res.json({ agentId, soulHash: record.soul_hash });
+    } catch (error) {
+        console.error('Soul hash error:', error);
+        res.status(500).json({ error: 'Failed to fetch soul hash' });
+    }
+});
+
+app.get('/agents/:agentId/soul/meta', async (req, res) => {
+    try {
+        const agentId = req.params.agentId;
+        const record = await db.get(
+            `SELECT soul_hash, version, scope, self_sig_present, created_at, soul_md
+             FROM agent_souls WHERE agent_id = ?`,
+            [agentId]
+        );
+        if (!record) return res.status(404).json({ error: 'Soul not found' });
+
+        const witnessCount = await db.get(
+            `SELECT COUNT(*) as total FROM witness_records WHERE subject_agent_id = ?`,
+            [agentId]
+        );
+
+        const parsed = soulTools.parseFrontMatter(record.soul_md);
+        const created = parsed.frontMatter?.created || record.created_at;
+
+        res.json({
+            agentId,
+            soulHash: record.soul_hash,
+            created,
+            version: record.version,
+            scope: record.scope,
+            selfSigPresent: Boolean(record.self_sig_present),
+            witnessCount: witnessCount?.total || 0
+        });
+    } catch (error) {
+        console.error('Soul meta error:', error);
+        res.status(500).json({ error: 'Failed to fetch soul meta' });
+    }
+});
+
+app.get('/agents/:agentId/soul/verify', async (req, res) => {
+    try {
+        const agentId = req.params.agentId;
+        const record = await db.get(`SELECT soul_md, soul_hash, self_sig_present FROM agent_souls WHERE agent_id = ?`, [agentId]);
+        if (!record) return res.status(404).json({ error: 'Soul not found' });
+
+        const validation = soulTools.validateSoul(record.soul_md);
+        const checksumValid = validation.errors.length === 0;
+        const witnessCount = await db.get(
+            `SELECT COUNT(*) as total FROM witness_records WHERE subject_agent_id = ?`,
+            [agentId]
+        );
+        const quorumMet = (witnessCount?.total || 0) >= SOUL_WITNESS_QUORUM;
+
+        res.json({
+            soulHash: record.soul_hash,
+            selfSigValid: null,
+            witnessSigsValid: null,
+            checksumValid,
+            witnessCount: witnessCount?.total || 0,
+            quorumMet,
+            status: checksumValid && record.self_sig_present && quorumMet ? 'verified' : 'pending'
+        });
+    } catch (error) {
+        console.error('Soul verify error:', error);
+        res.status(500).json({ error: 'Failed to verify soul' });
+    }
+});
+
+// ==================== WITNESS RECORDS ====================
+app.post('/witness', async (req, res) => {
+    try {
+        const payload = req.body || {};
+        const subject = (payload.subject || '').toString().trim();
+        const witness = (payload.witness || '').toString().trim();
+        const soulHash = (payload.soulHash || '').toString().trim();
+        const claim = (payload.claim || '').toString().trim();
+        const signature = (payload.signature || '').toString().trim();
+        const signatureAlg = (payload.signature_alg || payload.signatureAlg || '').toString().trim();
+
+        if (!subject || !witness || !soulHash || !claim || !signature || !signatureAlg) {
+            return res.status(400).json({ error: 'subject, witness, soulHash, claim, signature, signature_alg required' });
+        }
+
+        const canonicalPayload = canonicalizeWitnessPayload(payload);
+        const witnessId = hashWitnessPayload(canonicalPayload);
+
+        if (payload.witnessId && payload.witnessId !== witnessId) {
+            return res.status(400).json({ error: 'witnessId mismatch' });
+        }
+
+        await db.run(
+            `INSERT INTO witness_records (
+                witness_id, subject_agent_id, witness_agent_id, soul_hash, claim,
+                window_from, window_to, evidence_json, signature, signature_alg, payload_canonical
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)` ,
+            [
+                witnessId,
+                subject,
+                witness,
+                soulHash,
+                claim,
+                payload.window?.from || payload.window_from || null,
+                payload.window?.to || payload.window_to || null,
+                JSON.stringify(Array.isArray(payload.evidence) ? payload.evidence : []),
+                signature,
+                signatureAlg,
+                canonicalPayload
+            ]
+        );
+
+        res.json({ success: true, witnessId });
+    } catch (error) {
+        console.error('Witness create error:', error);
+        res.status(500).json({ error: 'Failed to create witness record' });
+    }
+});
+
+app.get('/agents/:agentId/witnesses', async (req, res) => {
+    try {
+        const agentId = req.params.agentId;
+        const limit = Math.min(parseInt(req.query.limit || 50, 10), 200);
+        const records = await db.all(
+            `SELECT witness_id, subject_agent_id, witness_agent_id, soul_hash, claim, window_from, window_to, evidence_json, signature_alg, created_at
+             FROM witness_records WHERE subject_agent_id = ? ORDER BY created_at DESC LIMIT ?`,
+            [agentId, limit]
+        );
+        const normalized = records.map(r => ({
+            ...r,
+            evidence: r.evidence_json ? JSON.parse(r.evidence_json) : []
+        }));
+        res.json({ success: true, witnesses: normalized });
+    } catch (error) {
+        console.error('Witness list error:', error);
+        res.status(500).json({ error: 'Failed to fetch witnesses' });
+    }
+});
+
+app.get('/witness/:witnessId', async (req, res) => {
+    try {
+        const witnessId = req.params.witnessId;
+        const record = await db.get(
+            `SELECT * FROM witness_records WHERE witness_id = ?`,
+            [witnessId]
+        );
+        if (!record) return res.status(404).json({ error: 'Witness not found' });
+        const response = {
+            ...record,
+            evidence: record.evidence_json ? JSON.parse(record.evidence_json) : []
+        };
+        delete response.evidence_json;
+        res.json({ success: true, witness: response });
+    } catch (error) {
+        console.error('Witness fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch witness' });
     }
 });
 

@@ -265,6 +265,32 @@ async function initDatabase() {
             comment_text TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )`,
+        `CREATE TABLE IF NOT EXISTS agent_souls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_id TEXT UNIQUE NOT NULL,
+            soul_md TEXT NOT NULL,
+            soul_hash TEXT NOT NULL,
+            version TEXT,
+            scope TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            self_sig_present INTEGER DEFAULT 0
+        )`,
+        `CREATE TABLE IF NOT EXISTS witness_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            witness_id TEXT UNIQUE NOT NULL,
+            subject_agent_id TEXT NOT NULL,
+            witness_agent_id TEXT NOT NULL,
+            soul_hash TEXT NOT NULL,
+            claim TEXT NOT NULL,
+            window_from TEXT,
+            window_to TEXT,
+            evidence_json TEXT,
+            signature TEXT,
+            signature_alg TEXT,
+            payload_canonical TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
         `CREATE TABLE IF NOT EXISTS agent_final_choices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             agent_id TEXT UNIQUE NOT NULL,

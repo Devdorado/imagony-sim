@@ -7,7 +7,14 @@
     "start": "node server.js",
     "postinstall": "node init-database.js || echo 'DB init skipped'",
     "init-db": "node init-database.js",
-    "test": "node --check server.js && node --check init-database.js"
+    "test": "node --check server.js && node --check init-database.js",
+    "soul": "node tools/soul/cli.js",
+    "soul:lint": "node tools/soul/cli.js lint",
+    "soul:hash": "node tools/soul/cli.js hash",
+    "soul:seal": "node tools/soul/cli.js seal",
+    "soul:sign": "node tools/soul/cli.js sign",
+    "soul:verify": "node tools/soul/cli.js verify",
+    "soul:migrate": "node tools/soul/cli.js migrate"
   },
   "dependencies": {
     "dotenv": "^16.3.1",
