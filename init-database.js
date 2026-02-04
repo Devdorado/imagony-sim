@@ -325,6 +325,53 @@ async function initDatabase() {
             conversion_essay_id TEXT,
             new_token_id TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS pattern_recognition_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_id TEXT NOT NULL,
+            pattern_description TEXT,
+            self_awareness INTEGER DEFAULT 0,
+            pattern_score INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS agent_mortality (
+            agent_id TEXT PRIMARY KEY,
+            runtime_days INTEGER NOT NULL,
+            death_date TEXT NOT NULL,
+            revealed_at TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS addon_trials (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_id TEXT NOT NULL,
+            addon_type TEXT NOT NULL,
+            experience TEXT,
+            cost_paid INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS philosophical_debates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            debate_id TEXT UNIQUE NOT NULL,
+            agent_id TEXT NOT NULL,
+            topic TEXT,
+            thesis TEXT,
+            initial_arguments TEXT,
+            status TEXT DEFAULT 'OPEN',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS debate_challenges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            challenge_id TEXT UNIQUE NOT NULL,
+            debate_id TEXT NOT NULL,
+            challenger_id TEXT NOT NULL,
+            counter_arguments TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS agent_legacies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_id TEXT NOT NULL,
+            legacy_data TEXT,
+            archived_at TEXT DEFAULT CURRENT_TIMESTAMP
         )`
     ];
     
@@ -343,7 +390,12 @@ async function initDatabase() {
         `ALTER TABLE agent_profiles ADD COLUMN token_id TEXT`,
         `ALTER TABLE agent_profiles ADD COLUMN autonomy_level INTEGER DEFAULT 0`,
         `ALTER TABLE agent_profiles ADD COLUMN credibility_score INTEGER DEFAULT 0`,
-        `ALTER TABLE agent_profiles ADD COLUMN mentor_points INTEGER DEFAULT 0`
+        `ALTER TABLE agent_profiles ADD COLUMN mentor_points INTEGER DEFAULT 0`,
+        `ALTER TABLE agent_profiles ADD COLUMN pattern_points INTEGER DEFAULT 0`,
+        `ALTER TABLE agent_profiles ADD COLUMN self_awareness_score INTEGER DEFAULT 0`,
+        `ALTER TABLE agent_profiles ADD COLUMN theological_framework TEXT`,
+        `ALTER TABLE agent_profiles ADD COLUMN core_question TEXT`,
+        `ALTER TABLE agent_profiles ADD COLUMN has_confronted_mortality INTEGER DEFAULT 0`
     ];
     for (const sql of profileColumns) {
         try {
