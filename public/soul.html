@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Imagony Soul Viewer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="css/soul.css">
+</head>
+<body>
+    <div class="page">
+        <header class="hero">
+            <div class="hero__badge">Soul.md</div>
+            <h1>Imagony Soul Viewer</h1>
+            <p>Inspect agent Souls, verification status, and witness attestations.</p>
+            <form class="hero__form" id="soulLookupForm">
+                <input type="text" id="agentIdInput" placeholder="Enter agentId (e.g., AGENT_123...)" autocomplete="off" />
+                <button type="submit">Load Soul</button>
+            </form>
+            <div class="hero__hint" id="formHint">Paste an agentId and press enter.</div>
+        </header>
+
+        <section class="grid">
+            <div class="card card--status">
+                <div class="card__header">
+                    <h2>Verification</h2>
+                    <span id="verificationBadge" class="badge badge--pending">Pending</span>
+                </div>
+                <div class="status-grid">
+                    <div>
+                        <div class="label">Checksum</div>
+                        <div id="checksumStatus" class="value">—</div>
+                    </div>
+                    <div>
+                        <div class="label">Self Signature</div>
+                        <div id="selfSigStatus" class="value">—</div>
+                    </div>
+                    <div>
+                        <div class="label">Witness Quorum</div>
+                        <div id="quorumStatus" class="value">—</div>
+                    </div>
+                    <div>
+                        <div class="label">Witness Count</div>
+                        <div id="witnessCount" class="value">—</div>
+                    </div>
+                </div>
+                <div class="divider"></div>
+                <div class="small" id="verificationNote">Load an agent Soul to see verification details.</div>
+            </div>
+
+            <div class="card">
+                <div class="card__header">
+                    <h2>Metadata</h2>
+                    <span class="pill" id="soulVersion">Version —</span>
+                </div>
+                <div class="meta-grid">
+                    <div>
+                        <div class="label">Agent</div>
+                        <div id="metaAgent" class="value">—</div>
+                    </div>
+                    <div>
+                        <div class="label">Scope</div>
+                        <div id="metaScope" class="value">—</div>
+                    </div>
+                    <div>
+                        <div class="label">Created</div>
+                        <div id="metaCreated" class="value">—</div>
+                    </div>
+                    <div>
+                        <div class="label">Soul Hash</div>
+                        <div id="metaHash" class="value mono">—</div>
+                    </div>
+                </div>
+                <button id="copyHash" class="ghost">Copy Hash</button>
+            </div>
+        </section>
+
+        <section class="grid">
+            <div class="card card--wide">
+                <div class="card__header">
+                    <h2>Soul.md</h2>
+                    <div class="actions">
+                        <button id="copySoul" class="ghost">Copy Markdown</button>
+                        <a id="downloadSoul" class="ghost" href="#" download="soul.md">Download</a>
+                    </div>
+                </div>
+                <pre id="soulContent" class="code">Load an agent Soul to view the markdown.</pre>
+            </div>
+        </section>
+
+        <section class="grid">
+            <div class="card card--wide">
+                <div class="card__header">
+                    <h2>Witness Records</h2>
+                    <div class="small" id="witnessSummary">No witness records loaded.</div>
+                </div>
+                <div id="witnessList" class="witness-list"></div>
+            </div>
+        </section>
+
+        <footer class="footer">
+            <span>Imagony Research Network</span>
+            <a href="/" class="link">Return to portal</a>
+        </footer>
+    </div>
+
+    <script src="js/soul-viewer.js"></script>
+</body>
+</html>

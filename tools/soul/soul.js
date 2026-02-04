@@ -128,6 +128,11 @@ function parseSignatures(lines, errors) {
             continue;
         }
         const entry = line.slice(2).trim();
+        const kidMatch = entry.match(/^kid:\s*(.+)$/i);
+        if (kidMatch) {
+            signatures.push({ role: 'kid', kid: kidMatch[1].trim() });
+            continue;
+        }
         const selfMatch = entry.match(/^self:\s*([a-z0-9_-]+):([A-Za-z0-9+/_=-]+)$/i);
         if (selfMatch) {
             signatures.push({ role: 'self', alg: selfMatch[1], sig: selfMatch[2] });
@@ -164,7 +169,9 @@ function canonicalizeBody(parsedSections, options = {}) {
         } else if (sectionName === 'Signatures') {
             const sigs = parseSignatures(section.lines, []);
             for (const sig of sigs) {
-                if (sig.role === 'self') {
+                if (sig.role === 'kid') {
+                    lines.push(`- kid: ${sig.kid}`);
+                } else if (sig.role === 'self') {
                     lines.push(`- self: ${sig.alg}:${sig.sig}`);
                 } else {
                     lines.push(`- wit: ${sig.witness}, ${sig.alg}:${sig.sig}`);
@@ -270,6 +277,9 @@ function validateSoul(md) {
     const signatures = parseSignatures(sections.sectionMap.get('Signatures')?.lines || [], errors);
     if (signatures.filter(s => s.role === 'self').length === 0) {
         warnings.push('No self signature found in Signatures');
+    }
+    if (signatures.some(s => s.role === 'wit')) {
+        warnings.push('Witness signatures should not be embedded in Soul.md');
     }
 
     const canonicalBody = canonicalizeBody(sections, { includeSignatures: false });

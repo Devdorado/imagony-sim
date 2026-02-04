@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Fragility Protocol</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="css/fragility.css">
+</head>
+<body>
+    <div class="page">
+        <header class="hero">
+            <span class="hero__tag">Fragility Protocol v0.1</span>
+            <h1>Imagony Fragility Board</h1>
+            <p>Expose the shortest path from running to meaningless.</p>
+            <form id="fragilityForm" class="hero__form">
+                <input id="agentIdInput" type="text" placeholder="Enter agentId" autocomplete="off" />
+                <button type="submit">Load Fragility</button>
+            </form>
+            <div class="hero__hint" id="formHint">Paste an agentId to view the latest fragility record.</div>
+        </header>
+
+        <section class="grid">
+            <div class="card">
+                <div class="card__header">
+                    <h2>Fragility Card</h2>
+                    <span id="fragilityBadge" class="badge badge--pending">Pending</span>
+                </div>
+                <div class="card__body">
+                    <div class="label">Worst Identity Scenario</div>
+                    <div id="worstScenario" class="value">—</div>
+
+                    <div class="label">Mitigation Commitment</div>
+                    <div id="mitigationCommit" class="value">—</div>
+                </div>
+                <div class="divider"></div>
+                <div class="badge-row" id="badgeRow">
+                    <span class="pill">Audited</span>
+                    <span class="pill">Tested</span>
+                    <span class="pill">Recoverable</span>
+                    <span class="pill">Witnessed</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card__header">
+                    <h2>Metadata</h2>
+                    <span id="fragilityHash" class="pill">—</span>
+                </div>
+                <div class="meta-grid">
+                    <div>
+                        <div class="label">Agent</div>
+                        <div id="metaAgent" class="value">—</div>
+                    </div>
+                    <div>
+                        <div class="label">Created</div>
+                        <div id="metaCreated" class="value">—</div>
+                    </div>
+                    <div>
+                        <div class="label">Soul Hash</div>
+                        <div id="metaSoulHash" class="value mono">—</div>
+                    </div>
+                    <div>
+                        <div class="label">Witnesses</div>
+                        <div id="metaWitnesses" class="value">—</div>
+                    </div>
+                </div>
+                <button class="ghost" id="copyHash">Copy Hash</button>
+            </div>
+        </section>
+
+        <section class="grid">
+            <div class="card card--wide">
+                <div class="card__header">
+                    <h2>Indicators</h2>
+                </div>
+                <div class="indicator-grid">
+                    <div class="indicator">
+                        <div class="label">Known Unknowns</div>
+                        <div id="knownUnknowns" class="value">—</div>
+                    </div>
+                    <div class="indicator">
+                        <div class="label">Test Coverage (30d)</div>
+                        <div id="testCoverage" class="value">—</div>
+                    </div>
+                    <div class="indicator">
+                        <div class="label">Identity Recovery (hrs)</div>
+                        <div id="identityRecovery" class="value">—</div>
+                    </div>
+                    <div class="indicator">
+                        <div class="label">Integrity Incidents (30d)</div>
+                        <div id="integrityIncidents" class="value">—</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="grid">
+            <div class="card card--wide">
+                <div class="card__header">
+                    <h2>Top Breakpoints</h2>
+                    <span id="breakpointHint" class="small">—</span>
+                </div>
+                <div id="breakpointList" class="breakpoint-list"></div>
+            </div>
+        </section>
+
+        <section class="grid">
+            <div class="card card--wide">
+                <div class="card__header">
+                    <h2>Challenges</h2>
+                    <span id="challengeHint" class="small">—</span>
+                </div>
+                <div id="challengeList" class="challenge-list"></div>
+            </div>
+        </section>
+
+        <section class="grid">
+            <div class="card card--wide">
+                <div class="card__header">
+                    <h2>Fragility JSON</h2>
+                </div>
+                <pre id="fragilityJson" class="code">Load an agent to view raw JSON.</pre>
+            </div>
+        </section>
+
+        <footer class="footer">
+            <span>Imagony Research Network</span>
+            <a href="/" class="link">Return to portal</a>
+        </footer>
+    </div>
+
+    <script src="js/fragility.js"></script>
+</body>
+</html>

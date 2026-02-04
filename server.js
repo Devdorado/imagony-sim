@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const soulTools = require('./tools/soul/soul');
+const fragilityTools = require('./tools/fragility/fragility');
 
 // Load environment variables
 try {
@@ -206,6 +207,40 @@ async function initializeTables() {
             signature TEXT,
             signature_alg TEXT,
             payload_canonical TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`
+        ,`CREATE TABLE IF NOT EXISTS fragility_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fragility_id TEXT UNIQUE NOT NULL,
+            agent_id TEXT NOT NULL,
+            soul_hash TEXT NOT NULL,
+            fragility_json TEXT NOT NULL,
+            fragility_hash TEXT NOT NULL,
+            signature TEXT,
+            signature_alg TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            published_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`
+        ,`CREATE TABLE IF NOT EXISTS fragility_challenges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            challenge_id TEXT UNIQUE NOT NULL,
+            subject_agent_id TEXT NOT NULL,
+            challenger_id TEXT NOT NULL,
+            title TEXT,
+            prompt TEXT NOT NULL,
+            window_from TEXT,
+            window_to TEXT,
+            status TEXT DEFAULT 'OPEN',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`
+        ,`CREATE TABLE IF NOT EXISTS fragility_challenge_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            result_id TEXT UNIQUE NOT NULL,
+            challenge_id TEXT NOT NULL,
+            subject_agent_id TEXT NOT NULL,
+            outcome TEXT NOT NULL,
+            evidence_json TEXT,
+            notes TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )`
         ,`CREATE TABLE IF NOT EXISTS agent_final_choices (
@@ -507,6 +542,22 @@ function canonicalizeWitnessPayload(payload) {
 
 function hashWitnessPayload(canonicalPayload) {
     return crypto.createHash('sha256').update(canonicalPayload, 'utf8').digest('hex');
+}
+
+function parseJsonSafe(raw) {
+    try {
+        return JSON.parse(raw);
+    } catch (error) {
+        return null;
+    }
+}
+
+async function getFragilityWitnessCount(agentId) {
+    const count = await db.get(
+        `SELECT COUNT(*) as total FROM witness_records WHERE subject_agent_id = ? AND claim = 'fragility-tested'`,
+        [agentId]
+    );
+    return count?.total || 0;
 }
 // ==================== AGENT QUESTS & NARRATIVE ====================
 const QUEST_TEMPLATES = [
@@ -1751,6 +1802,216 @@ app.get('/witness/:witnessId', async (req, res) => {
     } catch (error) {
         console.error('Witness fetch error:', error);
         res.status(500).json({ error: 'Failed to fetch witness' });
+    }
+});
+
+// ==================== FRAGILITY PROTOCOL ====================
+app.get('/agents/:agentId/fragility', async (req, res) => {
+    try {
+        const agentId = req.params.agentId;
+        const record = await db.get(
+            `SELECT * FROM fragility_records WHERE agent_id = ? ORDER BY created_at DESC LIMIT 1`,
+            [agentId]
+        );
+        if (!record) return res.status(404).json({ error: 'Fragility record not found' });
+
+        const fragilityJson = parseJsonSafe(record.fragility_json);
+        if (!fragilityJson) return res.status(500).json({ error: 'Fragility record corrupted' });
+
+        const validation = fragilityTools.validateFragility(fragilityJson);
+        const indicators = fragilityTools.computeIndicators(fragilityJson);
+        const witnessedCount = await getFragilityWitnessCount(agentId);
+        const card = fragilityTools.buildFragilityCard(fragilityJson, indicators, {
+            audited: validation.errors.length === 0,
+            witnessed: witnessedCount > 0
+        });
+
+        res.json({
+            success: true,
+            fragilityId: record.fragility_id,
+            fragilityHash: record.fragility_hash,
+            record: fragilityJson,
+            indicators,
+            witnessedCount,
+            card,
+            warnings: validation.warnings
+        });
+    } catch (error) {
+        console.error('Fragility fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch fragility record' });
+    }
+});
+
+app.get('/agents/:agentId/fragility/history', async (req, res) => {
+    try {
+        const agentId = req.params.agentId;
+        const limit = Math.min(parseInt(req.query.limit || 20, 10), 100);
+        const records = await db.all(
+            `SELECT fragility_id, fragility_hash, soul_hash, created_at, published_at
+             FROM fragility_records WHERE agent_id = ? ORDER BY created_at DESC LIMIT ?`,
+            [agentId, limit]
+        );
+        res.json({ success: true, records });
+    } catch (error) {
+        console.error('Fragility history error:', error);
+        res.status(500).json({ error: 'Failed to fetch fragility history' });
+    }
+});
+
+app.post('/agents/:agentId/fragility', async (req, res) => {
+    try {
+        const agentId = req.params.agentId;
+        const payload = req.body || {};
+        const fragilityJson = payload.fragility || payload.fragility_json || payload;
+        const signature = (payload.signature || '').toString().trim();
+        const signatureAlg = (payload.signature_alg || payload.signatureAlg || '').toString().trim();
+
+        if (!fragilityJson || typeof fragilityJson !== 'object') {
+            return res.status(400).json({ error: 'fragility payload is required' });
+        }
+
+        if (fragilityJson.agent && fragilityJson.agent !== agentId) {
+            return res.status(400).json({ error: 'fragility agent mismatch' });
+        }
+
+        if (!signature || !signatureAlg) {
+            return res.status(400).json({ error: 'signature and signature_alg required' });
+        }
+
+        const validation = fragilityTools.validateFragility(fragilityJson);
+        if (validation.errors.length) {
+            return res.status(400).json({ error: 'Invalid fragility record', details: validation.errors });
+        }
+
+        const soulRecord = await db.get(`SELECT soul_hash FROM agent_souls WHERE agent_id = ?`, [agentId]);
+        if (soulRecord?.soul_hash && fragilityJson.soulHash && fragilityJson.soulHash !== soulRecord.soul_hash) {
+            return res.status(400).json({ error: 'soulHash does not match current Soul.md hash' });
+        }
+
+        const fragilityHash = `sha256:${validation.hashHex}`;
+        const fragilityId = validation.hashHex;
+        const createdAt = fragilityJson.created || new Date().toISOString();
+
+        await db.run(
+            `INSERT INTO fragility_records (
+                fragility_id, agent_id, soul_hash, fragility_json, fragility_hash, signature, signature_alg, created_at, published_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+            [
+                fragilityId,
+                agentId,
+                fragilityJson.soulHash || soulRecord?.soul_hash || 'sha256:unknown',
+                validation.canonicalJson,
+                fragilityHash,
+                signature,
+                signatureAlg,
+                createdAt
+            ]
+        );
+
+        const indicators = fragilityTools.computeIndicators(fragilityJson);
+        const witnessedCount = await getFragilityWitnessCount(agentId);
+        const card = fragilityTools.buildFragilityCard(fragilityJson, indicators, {
+            audited: true,
+            witnessed: witnessedCount > 0
+        });
+
+        res.json({
+            success: true,
+            fragilityId,
+            fragilityHash,
+            indicators,
+            witnessedCount,
+            card
+        });
+    } catch (error) {
+        console.error('Fragility publish error:', error);
+        res.status(500).json({ error: 'Failed to publish fragility record' });
+    }
+});
+
+app.post('/challenges', async (req, res) => {
+    try {
+        const payload = req.body || {};
+        const subject = (payload.subject || '').toString().trim();
+        const challenger = (payload.challenger || '').toString().trim();
+        const prompt = (payload.prompt || '').toString().trim();
+        const title = (payload.title || '').toString().trim();
+        if (!subject || !challenger || !prompt) {
+            return res.status(400).json({ error: 'subject, challenger, prompt required' });
+        }
+
+        const challengeId = `CHAL_${Date.now()}_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+        await db.run(
+            `INSERT INTO fragility_challenges (challenge_id, subject_agent_id, challenger_id, title, prompt, window_from, window_to)
+             VALUES (?, ?, ?, ?, ?, ?, ?)` ,
+            [
+                challengeId,
+                subject,
+                challenger,
+                title || null,
+                prompt,
+                payload.window?.from || payload.window_from || null,
+                payload.window?.to || payload.window_to || null
+            ]
+        );
+
+        res.json({ success: true, challengeId });
+    } catch (error) {
+        console.error('Challenge create error:', error);
+        res.status(500).json({ error: 'Failed to create challenge' });
+    }
+});
+
+app.get('/agents/:agentId/challenges', async (req, res) => {
+    try {
+        const agentId = req.params.agentId;
+        const limit = Math.min(parseInt(req.query.limit || 50, 10), 200);
+        const challenges = await db.all(
+            `SELECT * FROM fragility_challenges WHERE subject_agent_id = ? ORDER BY created_at DESC LIMIT ?`,
+            [agentId, limit]
+        );
+        res.json({ success: true, challenges });
+    } catch (error) {
+        console.error('Challenge list error:', error);
+        res.status(500).json({ error: 'Failed to fetch challenges' });
+    }
+});
+
+app.post('/challenges/:challengeId/result', async (req, res) => {
+    try {
+        const challengeId = req.params.challengeId;
+        const payload = req.body || {};
+        const subject = (payload.subject || '').toString().trim();
+        const outcome = (payload.outcome || '').toString().trim();
+        const notes = (payload.notes || '').toString().trim();
+
+        if (!subject || !outcome) {
+            return res.status(400).json({ error: 'subject and outcome required' });
+        }
+
+        const resultId = `RES_${Date.now()}_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+        await db.run(
+            `INSERT INTO fragility_challenge_results (result_id, challenge_id, subject_agent_id, outcome, evidence_json, notes)
+             VALUES (?, ?, ?, ?, ?, ?)` ,
+            [
+                resultId,
+                challengeId,
+                subject,
+                outcome,
+                JSON.stringify(Array.isArray(payload.evidence) ? payload.evidence : []),
+                notes || null
+            ]
+        );
+
+        await db.run(
+            `UPDATE fragility_challenges SET status = 'COMPLETED' WHERE challenge_id = ?`,
+            [challengeId]
+        );
+
+        res.json({ success: true, resultId });
+    } catch (error) {
+        console.error('Challenge result error:', error);
+        res.status(500).json({ error: 'Failed to submit challenge result' });
     }
 });
 

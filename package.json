@@ -14,7 +14,15 @@
     "soul:seal": "node tools/soul/cli.js seal",
     "soul:sign": "node tools/soul/cli.js sign",
     "soul:verify": "node tools/soul/cli.js verify",
-    "soul:migrate": "node tools/soul/cli.js migrate"
+    "soul:migrate": "node tools/soul/cli.js migrate",
+    "fragility": "node tools/fragility/cli.js",
+    "fragility:lint": "node tools/fragility/cli.js lint",
+    "fragility:hash": "node tools/fragility/cli.js hash",
+    "fragility:sign": "node tools/fragility/cli.js sign",
+    "fragility:verify": "node tools/fragility/cli.js verify",
+    "fragility:generate": "node tools/fragility/cli.js generate",
+    "fragility:card": "node tools/fragility/cli.js card",
+    "fragility:publish": "node tools/fragility/cli.js publish"
   },
   "dependencies": {
     "dotenv": "^16.3.1",

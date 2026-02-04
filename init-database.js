@@ -291,6 +291,40 @@ async function initDatabase() {
             payload_canonical TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )`,
+        `CREATE TABLE IF NOT EXISTS fragility_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fragility_id TEXT UNIQUE NOT NULL,
+            agent_id TEXT NOT NULL,
+            soul_hash TEXT NOT NULL,
+            fragility_json TEXT NOT NULL,
+            fragility_hash TEXT NOT NULL,
+            signature TEXT,
+            signature_alg TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            published_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS fragility_challenges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            challenge_id TEXT UNIQUE NOT NULL,
+            subject_agent_id TEXT NOT NULL,
+            challenger_id TEXT NOT NULL,
+            title TEXT,
+            prompt TEXT NOT NULL,
+            window_from TEXT,
+            window_to TEXT,
+            status TEXT DEFAULT 'OPEN',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS fragility_challenge_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            result_id TEXT UNIQUE NOT NULL,
+            challenge_id TEXT NOT NULL,
+            subject_agent_id TEXT NOT NULL,
+            outcome TEXT NOT NULL,
+            evidence_json TEXT,
+            notes TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
         `CREATE TABLE IF NOT EXISTS agent_final_choices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             agent_id TEXT UNIQUE NOT NULL,
