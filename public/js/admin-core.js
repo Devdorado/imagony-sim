@@ -23,30 +23,18 @@ class AdminDashboard {
      * Initialize the admin dashboard
      */
     init() {
-        if (!this.token) {
-            this.showLogin();
-            return;
-        }
-        
-        // Verify token is still valid
-        this.verifyToken().then(valid => {
-            if (valid) {
-                this.showDashboard();
-                this.setupEventListeners();
-                this.loadDashboard();
-                this.startAutoRefresh();
-            } else {
-                this.logout(false);
-            }
-        });
+        this.showDashboard();
+        this.setupEventListeners();
+        this.loadDashboard();
+        this.startAutoRefresh();
     }
     
     /**
      * Show login overlay
      */
     showLogin() {
-        document.getElementById('adminLoginOverlay').style.display = 'flex';
-        document.getElementById('adminDashboard').style.display = 'none';
+        document.getElementById('adminLoginOverlay').style.display = 'none';
+        document.getElementById('adminDashboard').style.display = 'block';
     }
     
     /**
