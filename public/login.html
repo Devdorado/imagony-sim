@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Imagony Login</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0d0f1a;
+            --panel: #141827;
+            --accent: #6c5ce7;
+            --text: #e8e9f3;
+            --muted: #9aa0b4;
+            --danger: #ff6b6b;
+        }
+        * { box-sizing: border-box; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+        body {
+            margin: 0;
+            background: radial-gradient(circle at top, #1b2036 0%, #0d0f1a 50%, #0b0d16 100%);
+            color: var(--text);
+            display: flex;
+            min-height: 100vh;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .card {
+            width: 100%;
+            max-width: 740px;
+            background: var(--panel);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.35);
+        }
+        h1 { margin: 0 0 6px; font-size: 24px; }
+        p { margin: 0 0 20px; color: var(--muted); }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 18px;
+        }
+        .panel {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 18px;
+        }
+        .panel h2 { margin: 0 0 12px; font-size: 18px; }
+        label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+        input {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: #0c1020;
+            color: var(--text);
+            margin-bottom: 12px;
+        }
+        button {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: none;
+            background: var(--accent);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button.secondary {
+            margin-top: 10px;
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .status {
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        .status.error { color: var(--danger); }
+        .status.success { color: #6be27d; }
+        .hint {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 10px;
+        }
+        .link {
+            color: #9a8cff;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Imagony Access</h1>
+        <p>Simple login for user and admin access.</p>
+        <div class="grid">
+            <div class="panel">
+                <h2>User Login</h2>
+                <label for="userName">Username</label>
+                <input id="userName" type="text" placeholder="C0bra64" />
+                <label for="userPass">Password</label>
+                <input id="userPass" type="password" placeholder="••••••••" />
+                <button id="userLoginBtn">Login as User</button>
+                <div id="userStatus" class="status"></div>
+            </div>
+            <div class="panel">
+                <h2>Admin Login</h2>
+                <label for="adminName">Username</label>
+                <input id="adminName" type="text" placeholder="C0bra64" />
+                <label for="adminPass">Password</label>
+                <input id="adminPass" type="password" placeholder="••••••••" />
+                <button id="adminLoginBtn">Login as Admin</button>
+                <a class="link hint" href="/admin2">Go to admin dashboard</a>
+                <div id="adminStatus" class="status"></div>
+            </div>
+        </div>
+        <p class="hint">Admin login stores a token in your browser and redirects to /admin2.</p>
+    </div>
+
+    <script>
+        const setStatus = (el, message, ok) => {
+            el.textContent = message;
+            el.className = `status ${ok ? 'success' : 'error'}`;
+        };
+
+        document.getElementById('userLoginBtn').addEventListener('click', async () => {
+            const username = document.getElementById('userName').value.trim();
+            const password = document.getElementById('userPass').value;
+            const statusEl = document.getElementById('userStatus');
+
+            try {
+                const res = await fetch('/api/user/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Login failed');
+
+                localStorage.setItem('user_token', data.token);
+                localStorage.setItem('user_profile', JSON.stringify(data.user));
+                setStatus(statusEl, 'User login successful.', true);
+            } catch (err) {
+                setStatus(statusEl, err.message, false);
+            }
+        });
+
+        document.getElementById('adminLoginBtn').addEventListener('click', async () => {
+            const username = document.getElementById('adminName').value.trim();
+            const password = document.getElementById('adminPass').value;
+            const statusEl = document.getElementById('adminStatus');
+
+            try {
+                const res = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Login failed');
+
+                localStorage.setItem('admin_token', data.token);
+                localStorage.setItem('admin_user', JSON.stringify(data.admin));
+                setStatus(statusEl, 'Admin login successful. Redirecting…', true);
+                setTimeout(() => window.location.href = '/admin2', 700);
+            } catch (err) {
+                setStatus(statusEl, err.message, false);
+            }
+        });
+    </script>
+</body>
+</html>

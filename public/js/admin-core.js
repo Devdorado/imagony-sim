@@ -22,19 +22,28 @@ class AdminDashboard {
     /**
      * Initialize the admin dashboard
      */
-    init() {
-        this.showDashboard();
+    async init() {
         this.setupEventListeners();
-        this.loadDashboard();
-        this.startAutoRefresh();
+
+        if (this.token) {
+            const valid = await this.verifyToken();
+            if (valid) {
+                this.showDashboard();
+                this.loadDashboard();
+                this.startAutoRefresh();
+                return;
+            }
+        }
+
+        this.showLogin();
     }
     
     /**
      * Show login overlay
      */
     showLogin() {
-        document.getElementById('adminLoginOverlay').style.display = 'none';
-        document.getElementById('adminDashboard').style.display = 'block';
+        document.getElementById('adminLoginOverlay').style.display = 'flex';
+        document.getElementById('adminDashboard').style.display = 'none';
     }
     
     /**

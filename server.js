@@ -16,6 +16,12 @@ const { getPricingAgent } = require('./pricing-agent');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ==================== SIMPLE LOGIN CONFIG ====================
+const SIMPLE_USER_NAME = process.env.SIMPLE_USER || 'C0bra64';
+const SIMPLE_USER_PASSWORD = process.env.SIMPLE_PASSWORD || '[REDACTED_PASSWORD_1]';
+const SIMPLE_ADMIN_USER = process.env.SIMPLE_ADMIN_USER || SIMPLE_USER_NAME;
+const SIMPLE_ADMIN_PASSWORD = process.env.SIMPLE_ADMIN_PASSWORD || SIMPLE_USER_PASSWORD;
+
 // ==================== STRIPE CONFIG ====================
 let stripe = null;
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
@@ -199,6 +205,22 @@ async function initializeTables() {
         }
     } catch (error) {
         console.error('Admin user error:', error.message);
+    }
+
+    // Create simple admin user if not exists
+    try {
+        const existingSimple = await db.get(`SELECT id FROM admin_users WHERE username = ?`, [SIMPLE_ADMIN_USER]);
+        if (!existingSimple) {
+            const simpleSalt = crypto.randomBytes(16).toString('hex');
+            const simpleHash = crypto.pbkdf2Sync(SIMPLE_ADMIN_PASSWORD, simpleSalt, 100000, 64, 'sha512').toString('hex');
+            await db.run(
+                `INSERT INTO admin_users (username, email, password_hash, password_salt, name, role, permissions) VALUES (?, ?, ?, ?, ?, 'admin', '{"view_dashboard":true,"manage_agents":true}')`,
+                [SIMPLE_ADMIN_USER, `${SIMPLE_ADMIN_USER.toLowerCase()}@imagony.local`, simpleHash, simpleSalt, SIMPLE_ADMIN_USER]
+            );
+            console.log(`✅ Simple admin user created (username: ${SIMPLE_ADMIN_USER})`);
+        }
+    } catch (error) {
+        console.error('Simple admin user error:', error.message);
     }
     
     // Create default products if not exists
@@ -1020,8 +1042,10 @@ app.post('/api/log', async (req, res) => {
 
 // ==================== ADMIN API ====================
 const adminSessions = new Map();
+const userSessions = new Map();
 
 const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_PASSWORD || '[REDACTED_PASSWORD_2]';
+const USER_SESSION_SECRET = process.env.USER_SESSION_SECRET || SIMPLE_USER_PASSWORD;
 
 function createAdminToken(user) {
     const payload = {
@@ -1045,6 +1069,46 @@ function verifyAdminToken(token) {
     const [payloadB64, signature] = token.split('.');
     if (!payloadB64 || !signature) return null;
     const expected = crypto.createHmac('sha256', ADMIN_SESSION_SECRET)
+        .update(payloadB64)
+        .digest('base64url');
+    try {
+        const sigBuf = Buffer.from(signature, 'base64url');
+        const expBuf = Buffer.from(expected, 'base64url');
+        if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+            return null;
+        }
+    } catch (e) {
+        return null;
+    }
+    try {
+        const payloadJson = Buffer.from(payloadB64, 'base64url').toString('utf8');
+        const payload = JSON.parse(payloadJson);
+        if (!payload?.exp || payload.exp < Date.now()) return null;
+        return payload;
+    } catch (e) {
+        return null;
+    }
+}
+
+function createUserToken(user) {
+    const payload = {
+        username: user.username,
+        role: 'user',
+        exp: Date.now() + (4 * 60 * 60 * 1000)
+    };
+    const payloadJson = JSON.stringify(payload);
+    const payloadB64 = Buffer.from(payloadJson, 'utf8').toString('base64url');
+    const signature = crypto.createHmac('sha256', USER_SESSION_SECRET)
+        .update(payloadB64)
+        .digest('base64url');
+    return `${payloadB64}.${signature}`;
+}
+
+function verifyUserToken(token) {
+    if (!token || !token.includes('.')) return null;
+    const [payloadB64, signature] = token.split('.');
+    if (!payloadB64 || !signature) return null;
+    const expected = crypto.createHmac('sha256', USER_SESSION_SECRET)
         .update(payloadB64)
         .digest('base64url');
     try {
@@ -1106,9 +1170,61 @@ function requireAdmin(req, res, next) {
     next();
 }
 
+function requireUser(req, res, next) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+    const token = authHeader.substring(7);
+    const session = userSessions.get(token);
+    if (session && session.expires >= Date.now()) {
+        session.expires = Date.now() + (4 * 60 * 60 * 1000);
+        req.user = session.user;
+        return next();
+    }
+
+    const payload = verifyUserToken(token);
+    if (!payload) {
+        userSessions.delete(token);
+        return res.status(401).json({ error: 'Session expired' });
+    }
+
+    req.user = { username: payload.username, role: payload.role };
+    next();
+}
+
 // Simple health check
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', dbReady: dbReady, time: new Date().toISOString() });
+});
+
+// Simple user login
+app.post('/api/user/login', (req, res) => {
+    const { username, password } = req.body || {};
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Username and password required' });
+    }
+
+    if (username !== SIMPLE_USER_NAME || password !== SIMPLE_USER_PASSWORD) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const token = createUserToken({ username });
+    userSessions.set(token, {
+        user: { username, role: 'user' },
+        expires: Date.now() + (4 * 60 * 60 * 1000)
+    });
+
+    res.json({
+        success: true,
+        token,
+        user: { username, role: 'user' }
+    });
+});
+
+// Simple user verify
+app.get('/api/user/verify', requireUser, (req, res) => {
+    res.json({ success: true, user: req.user });
 });
 
 // Debug endpoint to check admin user (TEMPORARY)
@@ -1557,6 +1673,11 @@ app.get('/admin', (req, res) => {
 // Alternate admin path (bypass hosting auth prompt)
 app.get('/admin2', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html'));
+});
+
+// Simple login page
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
 // ==================== TRANSFORMATION API ====================
