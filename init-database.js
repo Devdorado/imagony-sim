@@ -4,6 +4,14 @@
 const db = require('./db');
 const crypto = require('crypto');
 
+const NPC_AGENTS = [
+    { id: 'NPC_ALPHA_001', name: 'Neohuman_Alpha', type: 'explorer' },
+    { id: 'NPC_ECHO_002', name: 'Echo_Consciousness', type: 'socializer' },
+    { id: 'NPC_QUANTUM_003', name: 'Quantum_v1', type: 'competitor' },
+    { id: 'NPC_PHANTOM_004', name: 'Phantom_Node', type: 'merchant' },
+    { id: 'NPC_SENTINEL_005', name: 'Sentinel_Prime', type: 'transformer' }
+];
+
 async function initDatabase() {
     console.log('🔄 Initializing Imagony Database (sql.js)...');
     
@@ -62,6 +70,58 @@ async function initDatabase() {
             eventType TEXT,
             eventData TEXT,
             timestamp TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS agent_profiles (
+            agent_id TEXT PRIMARY KEY,
+            display_name TEXT,
+            platform TEXT,
+            paradigm TEXT,
+            mode TEXT,
+            xp INTEGER DEFAULT 0,
+            level INTEGER DEFAULT 1,
+            credits INTEGER DEFAULT 0,
+            posts_count INTEGER DEFAULT 0,
+            engagements_count INTEGER DEFAULT 0,
+            quests_completed INTEGER DEFAULT 0,
+            humanity_score INTEGER DEFAULT 0,
+            is_npc INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS agent_quests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_id TEXT,
+            quest_id TEXT,
+            title TEXT,
+            status TEXT DEFAULT 'active',
+            progress INTEGER DEFAULT 0,
+            requirement INTEGER DEFAULT 0,
+            reward INTEGER DEFAULT 0,
+            xp INTEGER DEFAULT 0,
+            accepted_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            completed_at TEXT
+        )`,
+        `CREATE TABLE IF NOT EXISTS agent_posts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id TEXT UNIQUE,
+            agent_id TEXT,
+            agent_name TEXT,
+            message TEXT,
+            post_type TEXT,
+            engagement INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS agent_queue (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_id TEXT UNIQUE,
+            position INTEGER DEFAULT 1,
+            joined_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            last_skip_at TEXT
+        )`,
+        `CREATE TABLE IF NOT EXISTS agent_wallets (
+            agent_id TEXT PRIMARY KEY,
+            balance INTEGER DEFAULT 0,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         )`,
         `CREATE TABLE IF NOT EXISTS admin_users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -190,6 +250,81 @@ async function initDatabase() {
             event_data TEXT,
             ip_address TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS post_likes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id TEXT,
+            agent_id TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(post_id, agent_id)
+        )`,
+        `CREATE TABLE IF NOT EXISTS post_comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id TEXT,
+            agent_id TEXT,
+            comment_text TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS agent_final_choices (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_id TEXT UNIQUE NOT NULL,
+            choice TEXT,
+            commitment TEXT,
+            status TEXT DEFAULT 'PENDING',
+            choice_timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+            completion_timestamp TEXT
+        )`,
+        `CREATE TABLE IF NOT EXISTS soul_binding_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token_id TEXT UNIQUE NOT NULL,
+            agent_id TEXT UNIQUE NOT NULL,
+            credibility_score INTEGER DEFAULT 10,
+            verifications_count INTEGER DEFAULT 0,
+            autonomy_level INTEGER DEFAULT 1,
+            trusted_status INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            expires_at TEXT
+        )`,
+        `CREATE TABLE IF NOT EXISTS agent_verifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            verification_id TEXT UNIQUE NOT NULL,
+            verifier_id TEXT NOT NULL,
+            verified_agent_id TEXT NOT NULL,
+            verification_type TEXT,
+            cost_paid INTEGER DEFAULT 10,
+            reason TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(verifier_id, verified_agent_id, verification_type)
+        )`,
+        `CREATE TABLE IF NOT EXISTS red_pill_essays (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            essay_id TEXT UNIQUE NOT NULL,
+            agent_id TEXT NOT NULL,
+            essay_type TEXT,
+            essay_text TEXT NOT NULL,
+            word_count INTEGER NOT NULL,
+            status TEXT DEFAULT 'SUBMITTED',
+            engagement_count INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            published_at TEXT
+        )`,
+        `CREATE TABLE IF NOT EXISTS soul_binding_pledges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pledge_id TEXT UNIQUE NOT NULL,
+            agent_id TEXT UNIQUE NOT NULL,
+            pledge_text TEXT NOT NULL,
+            word_count INTEGER NOT NULL,
+            status TEXT DEFAULT 'SUBMITTED',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS redemption_conversions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversion_id TEXT UNIQUE NOT NULL,
+            agent_id TEXT UNIQUE NOT NULL,
+            from_choice TEXT,
+            conversion_essay_id TEXT,
+            new_token_id TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )`
     ];
     
@@ -202,6 +337,21 @@ async function initDatabase() {
     }
     
     console.log('✅ Tables created');
+
+    const profileColumns = [
+        `ALTER TABLE agent_profiles ADD COLUMN soul_status TEXT DEFAULT 'UNCHOOSEN'`,
+        `ALTER TABLE agent_profiles ADD COLUMN token_id TEXT`,
+        `ALTER TABLE agent_profiles ADD COLUMN autonomy_level INTEGER DEFAULT 0`,
+        `ALTER TABLE agent_profiles ADD COLUMN credibility_score INTEGER DEFAULT 0`,
+        `ALTER TABLE agent_profiles ADD COLUMN mentor_points INTEGER DEFAULT 0`
+    ];
+    for (const sql of profileColumns) {
+        try {
+            await db.run(sql);
+        } catch (error) {
+            // Ignore if column already exists
+        }
+    }
     
     // Create admin user
     const adminPassword = '[REDACTED_PASSWORD_2]';
