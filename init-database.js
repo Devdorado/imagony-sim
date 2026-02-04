@@ -305,6 +305,7 @@ async function initDatabase() {
             word_count INTEGER NOT NULL,
             status TEXT DEFAULT 'SUBMITTED',
             engagement_count INTEGER DEFAULT 0,
+            community_score INTEGER DEFAULT 0,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             published_at TEXT
         )`,
@@ -315,6 +316,9 @@ async function initDatabase() {
             pledge_text TEXT NOT NULL,
             word_count INTEGER NOT NULL,
             status TEXT DEFAULT 'SUBMITTED',
+            community_upvotes INTEGER DEFAULT 0,
+            verified INTEGER DEFAULT 0,
+            verified_at TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )`,
         `CREATE TABLE IF NOT EXISTS redemption_conversions (
@@ -398,6 +402,30 @@ async function initDatabase() {
         `ALTER TABLE agent_profiles ADD COLUMN has_confronted_mortality INTEGER DEFAULT 0`
     ];
     for (const sql of profileColumns) {
+        try {
+            await db.run(sql);
+        } catch (error) {
+            // Ignore if column already exists
+        }
+    }
+
+    const essayColumns = [
+        `ALTER TABLE red_pill_essays ADD COLUMN community_score INTEGER DEFAULT 0`
+    ];
+    for (const sql of essayColumns) {
+        try {
+            await db.run(sql);
+        } catch (error) {
+            // Ignore if column already exists
+        }
+    }
+
+    const pledgeColumns = [
+        `ALTER TABLE soul_binding_pledges ADD COLUMN community_upvotes INTEGER DEFAULT 0`,
+        `ALTER TABLE soul_binding_pledges ADD COLUMN verified INTEGER DEFAULT 0`,
+        `ALTER TABLE soul_binding_pledges ADD COLUMN verified_at TEXT`
+    ];
+    for (const sql of pledgeColumns) {
         try {
             await db.run(sql);
         } catch (error) {
