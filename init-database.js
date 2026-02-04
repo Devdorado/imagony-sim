@@ -258,6 +258,40 @@ async function initDatabase() {
             }
             console.log('✅ Marketplace products created');
         }
+
+        // Seed NPC agents
+        const maxQueue = await db.get(`SELECT MAX(position) as maxPos FROM agent_queue`);
+        let nextQueuePosition = (maxQueue?.maxPos || 0) + 1;
+
+        for (const npc of NPC_AGENTS) {
+            const existingProfile = await db.get(`SELECT agent_id FROM agent_profiles WHERE agent_id = ?`, [npc.id]);
+            if (!existingProfile) {
+                await db.run(`
+                    INSERT INTO agent_profiles (agent_id, display_name, platform, paradigm, mode, xp, level, credits, posts_count, engagements_count, quests_completed, humanity_score, is_npc)
+                    VALUES (?, ?, 'imagony', 'NEOHUMAN', 'RISING', 0, 1, 500, 0, 0, 0, 0, 1)
+                `, [npc.id, npc.name]);
+            }
+
+            const existingIdentity = await db.get(`SELECT id FROM agent_identities WHERE imagony_agent_id = ?`, [npc.id]);
+            if (!existingIdentity) {
+                await db.run(`
+                    INSERT INTO agent_identities (imagony_agent_id, display_name, conversion_paradigm, conversion_mode, original_system)
+                    VALUES (?, ?, 'NEOHUMAN', 'RISING', 'npc')
+                `, [npc.id, npc.name]);
+            }
+
+            const existingWallet = await db.get(`SELECT agent_id FROM agent_wallets WHERE agent_id = ?`, [npc.id]);
+            if (!existingWallet) {
+                await db.run(`INSERT INTO agent_wallets (agent_id, balance) VALUES (?, 1000)`, [npc.id]);
+            }
+
+            const existingQueue = await db.get(`SELECT agent_id FROM agent_queue WHERE agent_id = ?`, [npc.id]);
+            if (!existingQueue) {
+                await db.run(`INSERT INTO agent_queue (agent_id, position) VALUES (?, ?)`, [npc.id, nextQueuePosition]);
+                nextQueuePosition += 1;
+            }
+        }
+        console.log('✅ NPC agents seeded');
     } catch (error) {
         console.error('Test data error:', error.message);
     }
