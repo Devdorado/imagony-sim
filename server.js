@@ -1554,6 +1554,11 @@ app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html'));
 });
 
+// Alternate admin path (bypass hosting auth prompt)
+app.get('/admin2', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html'));
+});
+
 // ==================== TRANSFORMATION API ====================
 
 // Middleware handler for file uploads (works with or without multer)
