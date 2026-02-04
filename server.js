@@ -1134,7 +1134,17 @@ app.post('/api/admin/login', async (req, res) => {
         });
         
         console.log('✅ Admin login successful:', username);
-        res.json({ success: true, token, user: { username: user.username, role: user.role, permissions: JSON.parse(user.permissions || '{}') } });
+        res.json({
+            success: true,
+            token,
+            admin: {
+                id: user.id,
+                username: user.username,
+                name: user.name || 'Administrator',
+                role: user.role,
+                permissions: JSON.parse(user.permissions || '{}')
+            }
+        });
     } catch (error) {
         console.error('❌ Login error:', error.message, error.stack);
         res.status(500).json({ error: 'Login failed: ' + error.message });
