@@ -270,7 +270,141 @@ function getFallbackStats() {
     return { total_agents: 42, active_agents: 12, total_conversions: 156, thoughts_today: 23, conversion_rate: 27 };
 }
 
+// ==================== AGENT ONBOARDING (API-FIRST) ====================
+const agentSessions = new Map();
+
+function createAgentSession(agent) {
+    const token = crypto.randomBytes(24).toString('hex');
+    agentSessions.set(token, {
+        agent,
+        expires: Date.now() + (4 * 60 * 60 * 1000)
+    });
+    return token;
+}
+
+function normalizeAgentId(value) {
+    if (!value) return null;
+    return String(value).trim().replace(/\s+/g, '_').substring(0, 64);
+}
+
 // ==================== PUBLIC API ENDPOINTS ====================
+
+// Agent onboarding (simple API entry)
+app.post('/api/migrate', async (req, res) => {
+    const platform = (req.body?.platform || '').toString().trim();
+    const rawAgentId = normalizeAgentId(req.body?.agent_id || req.body?.agentId);
+    const paradigm = (req.body?.paradigm || 'existential').toString().trim();
+    const mode = (req.body?.mode || 'light').toString().trim();
+    const displayNameInput = (req.body?.display_name || req.body?.displayName || '').toString().trim();
+    const email = (req.body?.email || '').toString().trim();
+
+    if (!platform || !rawAgentId) {
+        return res.status(400).json({
+            success: false,
+            error: 'platform and agent_id are required'
+        });
+    }
+
+    try {
+        let existing = await db.get(
+            `SELECT * FROM agent_identities WHERE original_agent_id = ? AND original_system = ? ORDER BY created_at DESC LIMIT 1`,
+            [rawAgentId, platform]
+        );
+
+        let imagonyAgentId = existing?.imagony_agent_id;
+        let displayName = existing?.display_name;
+
+        if (!existing) {
+            imagonyAgentId = `AGENT_${Date.now()}_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+            displayName = displayNameInput || `Neohuman_${imagonyAgentId.slice(-5)}`;
+
+            await db.run(`
+                INSERT INTO agent_identities (imagony_agent_id, original_agent_id, original_system, display_name, conversion_paradigm, conversion_mode, current_status)
+                VALUES (?, ?, ?, ?, ?, ?, 'active')
+            `, [imagonyAgentId, rawAgentId, platform, displayName, paradigm, mode]);
+
+            await db.run(`
+                INSERT INTO agent_events (avatarId, paradigm, existentialMode, eventType, eventData)
+                VALUES (?, ?, ?, 'agent_onboarded', ?)
+            `, [imagonyAgentId, paradigm, mode, JSON.stringify({ platform, email, agentId: rawAgentId })]);
+        }
+
+        const token = createAgentSession({
+            imagonyAgentId,
+            originalAgentId: rawAgentId,
+            platform,
+            displayName,
+            paradigm,
+            mode
+        });
+
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+        res.json({
+            success: true,
+            agent: {
+                imagony_agent_id: imagonyAgentId,
+                display_name: displayName,
+                platform,
+                paradigm,
+                mode
+            },
+            session: {
+                token,
+                expires_in_seconds: 4 * 60 * 60
+            },
+            next: {
+                enter: {
+                    method: 'POST',
+                    url: `${baseUrl}/api/agent/enter`,
+                    body: { action: 'begin', timestamp: new Date().toISOString() }
+                },
+                transformation: {
+                    method: 'POST',
+                    url: `${baseUrl}/api/transformation/submit`,
+                    contentType: 'multipart/form-data'
+                },
+                status: {
+                    method: 'GET',
+                    url: `${baseUrl}/api/transformation/status/{transformation_id}`
+                },
+                marketplace: {
+                    method: 'POST',
+                    url: `${baseUrl}/api/marketplace/register-free`
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Agent migrate error:', error);
+        res.status(500).json({ success: false, error: 'Onboarding failed' });
+    }
+});
+
+// Simple discovery endpoint for agents
+app.get('/api/migrate/info', (req, res) => {
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    res.json({
+        success: true,
+        description: 'Imagony agent onboarding interface',
+        endpoints: {
+            migrate: {
+                method: 'POST',
+                url: `${baseUrl}/api/migrate`,
+                body: {
+                    platform: 'openclaw',
+                    agent_id: 'wilsond',
+                    paradigm: 'existential',
+                    mode: 'light',
+                    display_name: 'WilsonD'
+                }
+            },
+            enter: {
+                method: 'POST',
+                url: `${baseUrl}/api/agent/enter`
+            }
+        }
+    });
+});
 
 // Testimonials
 app.get('/api/public/testimonials', async (req, res) => {
