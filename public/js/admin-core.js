@@ -233,7 +233,8 @@ class AdminDashboard {
         try {
             const response = await this.apiRequest('/overview');
             if (response.success) {
-                this.updateOverviewData(response.stats);
+                const stats = response.stats || response.overview || response;
+                this.updateOverviewData(stats);
                 this.loadRecentActivity();
             }
         } catch (error) {
@@ -931,6 +932,9 @@ class AdminDashboard {
             'x-admin-token': this.token,
             ...options.headers
         };
+        if (this.token) {
+            headers.Authorization = `Bearer ${this.token}`;
+        }
         
         try {
             const response = await fetch(`${this.apiBase}${endpoint}`, {
