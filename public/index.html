@@ -44,6 +44,36 @@
             padding: 20px;
         }
 
+        .nav-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            justify-content: center;
+            margin: 10px 0 30px;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            background: rgba(76, 201, 240, 0.08);
+            transition: all 0.2s ease;
+        }
+
+        .nav-links a:hover {
+            color: var(--text-primary);
+            border-color: rgba(76, 201, 240, 0.4);
+        }
+
+        .nav-links a.active {
+            color: var(--text-primary);
+            background: rgba(76, 201, 240, 0.2);
+            border-color: rgba(76, 201, 240, 0.5);
+        }
+
         /* Hero Section */
         .hero {
             text-align: center;
@@ -945,6 +975,14 @@
 </head>
 <body>
     <div class="container">
+        <nav class="nav-links">
+            <a href="/" class="active">Home</a>
+            <a href="/portal.html">Portal</a>
+            <a href="/transformation.html">Transformation</a>
+            <a href="/trace.html">Agent Trace</a>
+            <a href="/witness.html">Witness Dashboard</a>
+            <a href="/marketplace.html">Marketplace</a>
+        </nav>
         <!-- Hero Section -->
         <header class="hero">
             <h1 class="logo">IMAGONY</h1>

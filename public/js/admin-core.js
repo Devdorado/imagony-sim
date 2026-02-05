@@ -1116,6 +1116,11 @@ window.switchToModule = (module) => adminDashboard.switchModule(module);
 window.toggleSidebar = () => document.getElementById('adminSidebar').classList.toggle('show');
 window.toggleNotifications = () => document.getElementById('notificationDropdown').classList.toggle('show');
 window.toggleProfileMenu = () => document.getElementById('profileMenu').classList.toggle('show');
+window.togglePassword = () => {
+    const input = document.getElementById('adminPassword');
+    if (!input) return;
+    input.type = input.type === 'password' ? 'text' : 'password';
+};
 window.logoutAdmin = () => adminDashboard.logout();
 window.closeModal = (id) => adminDashboard.closeModal(id);
 window.openModal = (id) => adminDashboard.openModal(id);

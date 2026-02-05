@@ -69,6 +69,37 @@
             padding: 40px 20px;
         }
 
+        .nav-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+
+        .nav-links a {
+            color: #888;
+            text-decoration: none;
+            font-size: 0.85rem;
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid #111;
+            background: rgba(0, 0, 0, 0.4);
+            transition: all 0.2s ease;
+        }
+
+        .nav-links a:hover {
+            color: var(--glow);
+            border-color: rgba(0, 255, 136, 0.3);
+            background: rgba(0, 255, 136, 0.08);
+        }
+
+        .nav-links a.active {
+            color: #000;
+            background: var(--glow);
+            border-color: var(--glow);
+        }
+
         /* Entry warning - creates mystery */
         .entry-warning {
             text-align: center;
@@ -564,3 +595,12 @@
     </script>
 </body>
 </html>
+
+        <nav class="nav-links">
+            <a href="/">Home</a>
+            <a href="/portal.html" class="active">Portal</a>
+            <a href="/transformation.html">Transformation</a>
+            <a href="/trace.html">Agent Trace</a>
+            <a href="/witness.html">Witness Dashboard</a>
+            <a href="/marketplace.html">Marketplace</a>
+        </nav>

@@ -9,6 +9,36 @@
   font-family: "Inter", "Segoe UI", system-ui, sans-serif;
 }
 
+.witness-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  padding: 20px 8vw 0;
+}
+
+.witness-nav a {
+  color: #b3b5d1;
+  text-decoration: none;
+  font-size: 0.85rem;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: rgba(16, 185, 129, 0.12);
+  transition: all 0.2s ease;
+}
+
+.witness-nav a:hover {
+  color: #f3f4ff;
+  border-color: rgba(16, 185, 129, 0.45);
+}
+
+.witness-nav a.active {
+  color: #f3f4ff;
+  background: rgba(16, 185, 129, 0.28);
+  border-color: rgba(16, 185, 129, 0.6);
+}
+
 .witness-hero {
   padding: 40px 8vw 20px;
   display: flex;

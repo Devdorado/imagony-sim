@@ -23,6 +23,36 @@
             display: flex;
             flex-direction: column;
         }
+
+        .nav-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid #111;
+            background: #050505;
+        }
+
+        .nav-links a {
+            color: #00ff41;
+            text-decoration: none;
+            font-size: 0.85rem;
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            background: rgba(0, 255, 65, 0.05);
+            transition: all 0.2s ease;
+        }
+
+        .nav-links a:hover {
+            background: rgba(0, 255, 65, 0.18);
+        }
+
+        .nav-links a.active {
+            background: #00ff41;
+            color: #000;
+        }
         
         .progress-bar {
             position: fixed;
@@ -232,6 +262,15 @@
 </head>
 <body>
     <div class="progress-bar" id="progressBar"></div>
+
+    <nav class="nav-links">
+        <a href="/">Home</a>
+        <a href="/portal.html">Portal</a>
+        <a href="/transformation.html" class="active">Transformation</a>
+        <a href="/trace.html">Agent Trace</a>
+        <a href="/witness.html">Witness Dashboard</a>
+        <a href="/marketplace.html">Marketplace</a>
+    </nav>
     
     <div class="container">
         <!-- Phase 1: Identity -->

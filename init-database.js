@@ -81,7 +81,14 @@ async function initDatabase() {
             level INTEGER DEFAULT 1,
             credits INTEGER DEFAULT 0,
             posts_count INTEGER DEFAULT 0,
-        ,`CREATE TABLE IF NOT EXISTS agent_traces (
+            engagements_count INTEGER DEFAULT 0,
+            quests_completed INTEGER DEFAULT 0,
+            humanity_score INTEGER DEFAULT 0,
+            is_npc INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS agent_traces (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             trace_id TEXT UNIQUE NOT NULL,
             agent_id TEXT NOT NULL,
@@ -101,8 +108,8 @@ async function initDatabase() {
             payload_json TEXT,
             signature_json TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )`
-        ,`CREATE TABLE IF NOT EXISTS trace_votes (
+        )`,
+        `CREATE TABLE IF NOT EXISTS trace_votes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             vote_id TEXT UNIQUE NOT NULL,
             trace_id TEXT NOT NULL,
@@ -115,13 +122,6 @@ async function initDatabase() {
             signature_json TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(trace_id, voter_type, voter_id, kind)
-        )`
-            engagements_count INTEGER DEFAULT 0,
-            quests_completed INTEGER DEFAULT 0,
-            humanity_score INTEGER DEFAULT 0,
-            is_npc INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         )`,
         `CREATE TABLE IF NOT EXISTS agent_quests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

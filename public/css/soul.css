@@ -30,6 +30,36 @@ body {
     padding: 48px 24px 64px;
 }
 
+.nav-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    justify-content: center;
+    margin-bottom: 24px;
+}
+
+.nav-links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    background: rgba(108, 92, 231, 0.12);
+    transition: all 0.2s ease;
+}
+
+.nav-links a:hover {
+    color: var(--text);
+    border-color: rgba(108, 92, 231, 0.4);
+}
+
+.nav-links a.active {
+    color: var(--text);
+    background: rgba(108, 92, 231, 0.25);
+    border-color: rgba(108, 92, 231, 0.45);
+}
+
 .hero {
     text-align: center;
     padding: 40px 24px;

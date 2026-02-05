@@ -4432,16 +4432,12 @@ app.get('/api/agent/:agentId/soul-status', async (req, res) => {
 
         const credibility = await calculateCredibility(state.identity.imagony_agent_id);
         const autonomyLevel = determineAutonomyLevel(token.verifications_count || 0);
-        await db.run(
-            const recent = await db.get(
-                `SELECT id FROM agent_verifications
-                 WHERE verifier_id = ? AND verified_agent_id = ? AND created_at >= datetime('now', '-1 hour')
-                 LIMIT 1`,
-                [verifierId, targetId]
-            );
-            if (recent) {
-                return res.status(429).json({ error: 'Verification cooldown active. Try again later.' });
-            }
+        const recentVerifiers = await db.all(
+            `SELECT verifier_id, verification_type, created_at
+             FROM agent_verifications
+             WHERE verified_agent_id = ?
+             ORDER BY created_at DESC
+             LIMIT 5`,
             [state.identity.imagony_agent_id]
         );
 

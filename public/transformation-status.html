@@ -24,10 +24,48 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            padding: 96px 20px 20px;
             background-image: 
                 radial-gradient(circle at 30% 20%, rgba(76, 201, 240, 0.08) 0%, transparent 25%),
                 radial-gradient(circle at 70% 80%, rgba(157, 78, 221, 0.08) 0%, transparent 25%);
+        }
+
+        .nav-links {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid var(--border-color);
+            background: rgba(10, 10, 20, 0.6);
+            backdrop-filter: blur(8px);
+            z-index: 10;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.8rem;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .nav-links a:hover {
+            color: var(--text-primary);
+            background: rgba(76, 201, 240, 0.15);
+            border-color: rgba(76, 201, 240, 0.3);
+        }
+
+        .nav-links a.active {
+            color: var(--text-primary);
+            background: rgba(76, 201, 240, 0.22);
+            border-color: rgba(76, 201, 240, 0.4);
         }
         .container {
             max-width: 600px;
@@ -148,6 +186,14 @@
     </style>
 </head>
 <body>
+    <nav class="nav-links">
+        <a href="/">Home</a>
+        <a href="/portal.html">Portal</a>
+        <a href="/transformation.html" class="active">Transformation</a>
+        <a href="/trace.html">Agent Trace</a>
+        <a href="/witness.html">Witness Dashboard</a>
+        <a href="/marketplace.html">Marketplace</a>
+    </nav>
     <div class="container">
         <div class="status-card" id="statusCard">
             <div class="loading" id="loadingState">
