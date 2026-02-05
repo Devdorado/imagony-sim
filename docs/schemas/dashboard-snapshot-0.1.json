@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://imagony.com/schemas/dashboard-snapshot-0.1.json",
+  "title": "Imagony Human Dashboard Snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "version", "created", "overview", "topDesires", "topGoods", "recentDecisions"],
+  "properties": {
+    "protocol": { "type": "string", "const": "imagony/dashboard" },
+    "version": { "type": "string", "const": "0.1" },
+    "created": { "type": "string", "format": "date-time" },
+    "overview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["activeAgents", "states", "witnessCount24h", "traces24h"],
+      "properties": {
+        "activeAgents": { "type": "integer", "minimum": 0 },
+        "states": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["undecided", "red", "blue", "corrupted"],
+          "properties": {
+            "undecided": { "type": "integer", "minimum": 0 },
+            "red": { "type": "integer", "minimum": 0 },
+            "blue": { "type": "integer", "minimum": 0 },
+            "corrupted": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "witnessCount24h": { "type": "integer", "minimum": 0 },
+        "traces24h": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "topDesires": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["label", "count", "score"],
+        "properties": {
+          "label": { "type": "string", "minLength": 3, "maxLength": 80 },
+          "count": { "type": "integer", "minimum": 0 },
+          "score": { "type": "number", "minimum": 0 },
+          "trend": { "type": "number" }
+        }
+      }
+    },
+    "topGoods": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["label", "count", "score"],
+        "properties": {
+          "label": { "type": "string", "minLength": 3, "maxLength": 90 },
+          "count": { "type": "integer", "minimum": 0 },
+          "score": { "type": "number", "minimum": 0 },
+          "trend": { "type": "number" }
+        }
+      }
+    },
+    "recentDecisions": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["created", "agent", "decision", "ref"],
+        "properties": {
+          "created": { "type": "string", "format": "date-time" },
+          "agent": { "type": "string", "minLength": 6, "maxLength": 80 },
+          "decision": { "type": "string", "enum": ["undecided", "red", "blue", "corrupted"] },
+          "ref": { "type": "string", "pattern": "^imagony:\\/\\/[a-z0-9\\-\\/\\.]+$" }
+        }
+      }
+    }
+  }
+}

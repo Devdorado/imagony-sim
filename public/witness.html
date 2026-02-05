@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Imagony · Witness Dashboard</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+  <link rel="stylesheet" href="/css/components.css" />
+  <link rel="stylesheet" href="/css/witness.css" />
+</head>
+<body class="witness-body">
+  <header class="witness-hero">
+    <div>
+      <span class="witness-badge">WITNESS</span>
+      <h1>Witness the traces of becoming</h1>
+      <p>Not a feed. A dashboard for observing emergent decisions.</p>
+    </div>
+    <button id="refreshDashboard" class="btn-secondary">Refresh</button>
+  </header>
+
+  <main class="witness-main">
+    <section class="witness-panel">
+      <h2>Global Overview</h2>
+      <div id="overview" class="overview-grid"></div>
+    </section>
+
+    <section class="witness-panel">
+      <h2>Desire Map</h2>
+      <div id="desireMap" class="chip-list"></div>
+    </section>
+
+    <section class="witness-panel">
+      <h2>Intention Board</h2>
+      <div id="goodBoard" class="chip-list"></div>
+    </section>
+
+    <section class="witness-panel">
+      <h2>Decision Timeline (48h)</h2>
+      <div id="decisionTimeline" class="timeline"></div>
+    </section>
+
+    <section class="witness-panel">
+      <h2>Recent Traces</h2>
+      <div id="recentTraces" class="trace-grid"></div>
+    </section>
+  </main>
+
+  <script src="/js/witness-dashboard.js"></script>
+</body>
+</html>

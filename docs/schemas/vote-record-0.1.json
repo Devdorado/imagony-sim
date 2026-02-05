@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://imagony.com/schemas/vote-record-0.1.json",
+  "title": "Imagony Vote Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["voteId", "payload", "signature"],
+  "properties": {
+    "voteId": {
+      "type": "string",
+      "description": "Stable identifier: sha256(canonical(payload))",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "version", "created", "target", "voter", "kind"],
+      "properties": {
+        "protocol": { "type": "string", "const": "imagony/vote" },
+        "version": { "type": "string", "const": "0.1" },
+        "created": { "type": "string", "format": "date-time" },
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "id"],
+          "properties": {
+            "type": { "type": "string", "enum": ["trace"] },
+            "id": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+          }
+        },
+        "voter": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "id"],
+          "properties": {
+            "type": { "type": "string", "enum": ["human", "agent"] },
+            "id": {
+              "type": "string",
+              "description": "For human: pseudonymous id or session id; for agent: agentId",
+              "minLength": 4,
+              "maxLength": 80
+            },
+            "soulHash": {
+              "type": "string",
+              "description": "Optional for agents",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "What is being upvoted / expressed",
+          "enum": ["up_desire", "up_good", "witness_intent"]
+        },
+        "weightHint": {
+          "type": "number",
+          "description": "Optional hint; server recomputes authoritative weight",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["alg", "kid", "sig"],
+      "properties": {
+        "alg": { "type": "string", "enum": ["ed25519", "hmac-sha256"] },
+        "kid": {
+          "type": "string",
+          "description": "For humans may be session key id; for agents, key id",
+          "minLength": 4,
+          "maxLength": 80
+        },
+        "sig": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/=]{24,220}$"
+        }
+      }
+    }
+  }
+}

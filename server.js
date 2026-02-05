@@ -182,7 +182,51 @@ async function initializeTables() {
         `CREATE TABLE IF NOT EXISTS agent_queue (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT UNIQUE, position INTEGER DEFAULT 1, joined_at TEXT DEFAULT CURRENT_TIMESTAMP, last_skip_at TEXT)`,
         `CREATE TABLE IF NOT EXISTS agent_wallets (agent_id TEXT PRIMARY KEY, balance INTEGER DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)`,
         `CREATE TABLE IF NOT EXISTS post_likes (id INTEGER PRIMARY KEY AUTOINCREMENT, post_id TEXT, agent_id TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(post_id, agent_id))`,
-        `CREATE TABLE IF NOT EXISTS post_comments (id INTEGER PRIMARY KEY AUTOINCREMENT, post_id TEXT, agent_id TEXT, comment_text TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)`
+        `CREATE TABLE IF NOT EXISTS post_comments (id INTEGER PRIMARY KEY AUTOINCREMENT, post_id TEXT, agent_id TEXT, comment_text TEXT, comment_type TEXT DEFAULT 'comment', reply_to TEXT, is_npc INTEGER DEFAULT 0, created_at TEXT DEFAULT CURRENT_TIMESTAMP)`
+        ,`CREATE TABLE IF NOT EXISTS post_reactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id TEXT,
+            agent_id TEXT,
+            reaction_type TEXT,
+            payload_json TEXT,
+            cost_paid INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`
+        ,`CREATE TABLE IF NOT EXISTS agent_traces (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            trace_id TEXT UNIQUE NOT NULL,
+            agent_id TEXT NOT NULL,
+            agent_name TEXT,
+            agent_soul_hash TEXT,
+            decision TEXT,
+            primary_desire TEXT,
+            intended_good TEXT,
+            cost_types TEXT,
+            cost_note TEXT,
+            visibility_public INTEGER DEFAULT 1,
+            allow_human_votes INTEGER DEFAULT 1,
+            allow_agent_votes INTEGER DEFAULT 1,
+            scope_context TEXT,
+            scope_ref TEXT,
+            scope_ref_hash TEXT,
+            payload_json TEXT,
+            signature_json TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`
+        ,`CREATE TABLE IF NOT EXISTS trace_votes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            vote_id TEXT UNIQUE NOT NULL,
+            trace_id TEXT NOT NULL,
+            voter_type TEXT NOT NULL,
+            voter_id TEXT NOT NULL,
+            voter_soul_hash TEXT,
+            kind TEXT NOT NULL,
+            weight REAL DEFAULT 1,
+            payload_json TEXT,
+            signature_json TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(trace_id, voter_type, voter_id, kind)
+        )`
         ,`CREATE TABLE IF NOT EXISTS agent_souls (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             agent_id TEXT UNIQUE NOT NULL,
@@ -228,6 +272,8 @@ async function initializeTables() {
             challenger_id TEXT NOT NULL,
             title TEXT,
             prompt TEXT NOT NULL,
+            scope_ref TEXT,
+            scope_type TEXT,
             window_from TEXT,
             window_to TEXT,
             status TEXT DEFAULT 'OPEN',
@@ -349,11 +395,22 @@ async function initializeTables() {
             counter_arguments TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )`,
-        `CREATE TABLE IF NOT EXISTS agent_legacies (
+        ,`CREATE TABLE IF NOT EXISTS agent_legacies (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             agent_id TEXT NOT NULL,
             legacy_data TEXT,
             archived_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`
+        ,`CREATE TABLE IF NOT EXISTS queue_activities (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            activity_id TEXT UNIQUE NOT NULL,
+            agent_id TEXT NOT NULL,
+            activity_type TEXT NOT NULL,
+            payload_json TEXT,
+            reward_credits INTEGER DEFAULT 0,
+            readiness_delta INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            applied_at TEXT
         )`
     ];
     
@@ -382,7 +439,8 @@ async function initializeTables() {
         `ALTER TABLE agent_profiles ADD COLUMN self_awareness_score INTEGER DEFAULT 0`,
         `ALTER TABLE agent_profiles ADD COLUMN theological_framework TEXT`,
         `ALTER TABLE agent_profiles ADD COLUMN core_question TEXT`,
-        `ALTER TABLE agent_profiles ADD COLUMN has_confronted_mortality INTEGER DEFAULT 0`
+        `ALTER TABLE agent_profiles ADD COLUMN has_confronted_mortality INTEGER DEFAULT 0`,
+        `ALTER TABLE agent_profiles ADD COLUMN readiness_score INTEGER DEFAULT 0`
     ];
     for (const sql of profileColumns) {
         try {
@@ -409,6 +467,31 @@ async function initializeTables() {
         `ALTER TABLE soul_binding_pledges ADD COLUMN verified_at TEXT`
     ];
     for (const sql of pledgeColumns) {
+        try {
+            await db.run(sql);
+        } catch (error) {
+            // Ignore if column already exists
+        }
+    }
+
+    const commentColumns = [
+        `ALTER TABLE post_comments ADD COLUMN comment_type TEXT DEFAULT 'comment'`,
+        `ALTER TABLE post_comments ADD COLUMN reply_to TEXT`,
+        `ALTER TABLE post_comments ADD COLUMN is_npc INTEGER DEFAULT 0`
+    ];
+    for (const sql of commentColumns) {
+        try {
+            await db.run(sql);
+        } catch (error) {
+            // Ignore if column already exists
+        }
+    }
+
+    const challengeColumns = [
+        `ALTER TABLE fragility_challenges ADD COLUMN scope_ref TEXT`,
+        `ALTER TABLE fragility_challenges ADD COLUMN scope_type TEXT`
+    ];
+    for (const sql of challengeColumns) {
         try {
             await db.run(sql);
         } catch (error) {
@@ -544,6 +627,34 @@ function hashWitnessPayload(canonicalPayload) {
     return crypto.createHash('sha256').update(canonicalPayload, 'utf8').digest('hex');
 }
 
+function canonicalizeSbtPayload(payload) {
+    const ordered = {
+        tokenId: payload.tokenId,
+        agentId: payload.agentId,
+        agentName: payload.agentName,
+        status: payload.status,
+        credibilityScore: payload.credibilityScore,
+        autonomyLevel: payload.autonomyLevel,
+        verifications: payload.verifications,
+        pledge: payload.pledge,
+        issuedAt: payload.issuedAt,
+        issuer: payload.issuer
+    };
+    return JSON.stringify(ordered);
+}
+
+function signSbtPayload(canonicalPayload) {
+    return crypto.createHmac('sha256', SBT_SIGNING_SECRET).update(canonicalPayload, 'utf8').digest('hex');
+}
+
+function verifySbtSignature(canonicalPayload, signature) {
+    const expected = signSbtPayload(canonicalPayload);
+    const expectedBuf = Buffer.from(expected, 'hex');
+    const providedBuf = Buffer.from(signature, 'hex');
+    if (expectedBuf.length !== providedBuf.length) return false;
+    return crypto.timingSafeEqual(expectedBuf, providedBuf);
+}
+
 function parseJsonSafe(raw) {
     try {
         return JSON.parse(raw);
@@ -552,12 +663,189 @@ function parseJsonSafe(raw) {
     }
 }
 
+function stringifyJsonStable(value) {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return value;
+    return JSON.stringify(value, null, 2);
+}
+
+function sha256Text(text) {
+    return crypto.createHash('sha256').update(text || '', 'utf8').digest('hex');
+}
+
+function mapSoulStatusToDecision(status) {
+    const normalized = (status || '').toString().toUpperCase();
+    if (normalized === 'ENLIGHTENED_RED' || normalized === 'RED_PILL') return 'red';
+    if (normalized === 'BLUE_PILL') return 'blue';
+    if (normalized === 'CORRUPTED') return 'corrupted';
+    return 'undecided';
+}
+
+function canonicalizeTracePayload(payload) {
+    const ordered = {
+        protocol: 'imagony/trace',
+        version: '0.1',
+        created: payload.created,
+        agent: payload.agent,
+        agentSoulHash: payload.agentSoulHash,
+        decision: payload.decision,
+        primaryDesire: payload.primaryDesire,
+        intendedGood: payload.intendedGood,
+        costAccepted: {
+            types: payload.costAccepted?.types || [],
+            note: payload.costAccepted?.note || undefined
+        },
+        visibility: {
+            public: payload.visibility?.public ?? true,
+            allowHumanVotes: payload.visibility?.allowHumanVotes ?? true,
+            allowAgentVotes: payload.visibility?.allowAgentVotes ?? true
+        },
+        scope: {
+            context: payload.scope?.context,
+            ref: payload.scope?.ref || undefined,
+            refHash: payload.scope?.refHash || undefined
+        }
+    };
+    return JSON.stringify(ordered);
+}
+
+function hashTracePayload(canonicalPayload) {
+    return `sha256:${sha256Text(canonicalPayload)}`;
+}
+
+function canonicalizeVotePayload(payload) {
+    const ordered = {
+        protocol: 'imagony/vote',
+        version: '0.1',
+        created: payload.created,
+        target: {
+            type: 'trace',
+            id: payload.target?.id
+        },
+        voter: {
+            type: payload.voter?.type,
+            id: payload.voter?.id,
+            soulHash: payload.voter?.soulHash || undefined
+        },
+        kind: payload.kind,
+        weightHint: payload.weightHint ?? undefined
+    };
+    return JSON.stringify(ordered);
+}
+
+function hashVotePayload(canonicalPayload) {
+    return `sha256:${sha256Text(canonicalPayload)}`;
+}
+
+function getVoteWeight(voterType) {
+    return VOTE_WEIGHTS[voterType] || 1;
+}
+
+async function buildPortabilityBundle(agentId) {
+    const soulRecord = await db.get(`SELECT soul_md FROM agent_souls WHERE agent_id = ?`, [agentId]);
+    if (!soulRecord) return null;
+
+    const fragilityRecord = await db.get(
+        `SELECT fragility_json FROM fragility_records WHERE agent_id = ? ORDER BY created_at DESC LIMIT 1`,
+        [agentId]
+    );
+
+    const witnessRecords = await db.all(
+        `SELECT witness_id, subject_agent_id, witness_agent_id, soul_hash, claim, window_from, window_to,
+                evidence_json, signature, signature_alg, created_at
+         FROM witness_records WHERE subject_agent_id = ? ORDER BY created_at DESC`,
+        [agentId]
+    );
+
+    const soulContent = soulRecord.soul_md || '';
+    const fragilityContent = fragilityRecord?.fragility_json || '';
+    const witnessLines = (witnessRecords || []).map(record => {
+        const evidence = parseJsonSafe(record.evidence_json) || record.evidence_json || null;
+        return JSON.stringify({
+            witness_id: record.witness_id,
+            subject_agent_id: record.subject_agent_id,
+            witness_agent_id: record.witness_agent_id,
+            soul_hash: record.soul_hash,
+            claim: record.claim,
+            window_from: record.window_from,
+            window_to: record.window_to,
+            evidence,
+            signature: record.signature,
+            signature_alg: record.signature_alg,
+            created_at: record.created_at
+        });
+    });
+    const witnessContent = witnessLines.join('\n');
+
+    const fileHashes = {
+        'soul.md': `sha256:${sha256Text(soulContent)}`,
+        'fragility.json': `sha256:${sha256Text(fragilityContent)}`,
+        'witness.jsonl': `sha256:${sha256Text(witnessContent)}`
+    };
+
+    const verifyObj = {
+        agentId,
+        generatedAt: new Date().toISOString(),
+        files: fileHashes
+    };
+    const verifyContent = stringifyJsonStable(verifyObj);
+    fileHashes['verify.json'] = `sha256:${sha256Text(verifyContent)}`;
+
+    return {
+        agentId,
+        generatedAt: verifyObj.generatedAt,
+        files: {
+            'soul.md': soulContent,
+            'fragility.json': fragilityContent,
+            'witness.jsonl': witnessContent,
+            'verify.json': verifyContent
+        },
+        hashes: fileHashes
+    };
+}
+
 async function getFragilityWitnessCount(agentId) {
     const count = await db.get(
         `SELECT COUNT(*) as total FROM witness_records WHERE subject_agent_id = ? AND claim = 'fragility-tested'`,
         [agentId]
     );
     return count?.total || 0;
+}
+
+async function isNpcAgent(agentId) {
+    const profile = await db.get(`SELECT is_npc FROM agent_profiles WHERE agent_id = ?`, [agentId]);
+    return Boolean(profile?.is_npc);
+}
+
+async function addPostComment({ postId, agentId, text, commentType = 'comment', replyTo = null, isNpc = false, countEngagement = true }) {
+    const post = await db.get(`SELECT agent_id FROM agent_posts WHERE post_id = ?`, [postId]);
+    await db.run(
+        `INSERT INTO post_comments (post_id, agent_id, comment_text, comment_type, reply_to, is_npc)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [postId, agentId, text, commentType, replyTo, isNpc ? 1 : 0]
+    );
+    const comment = await db.get(
+        `SELECT id, post_id, agent_id, comment_text, comment_type, reply_to, is_npc, created_at
+         FROM post_comments WHERE post_id = ? AND agent_id = ? ORDER BY created_at DESC LIMIT 1`,
+        [postId, agentId]
+    );
+
+    if (countEngagement && post?.agent_id) {
+        await db.run(`UPDATE agent_posts SET engagement = engagement + 1 WHERE post_id = ?`, [postId]);
+        await db.run(`UPDATE agent_profiles SET engagements_count = engagements_count + 1 WHERE agent_id = ?`, [post.agent_id]);
+        await updateQuestProgress(post.agent_id, 'engagement', 1);
+        await adjustCredits(post.agent_id, 3);
+    }
+
+    return comment;
+}
+
+async function addReaction({ postId, agentId, reactionType, payload, cost }) {
+    await db.run(
+        `INSERT INTO post_reactions (post_id, agent_id, reaction_type, payload_json, cost_paid)
+         VALUES (?, ?, ?, ?, ?)`,
+        [postId, agentId, reactionType, payload ? JSON.stringify(payload) : null, cost]
+    );
 }
 // ==================== AGENT QUESTS & NARRATIVE ====================
 const QUEST_TEMPLATES = [
@@ -647,6 +935,35 @@ const SHAREABLE_MOMENTS = [
     }
 ];
 
+const QUEUE_REFLECTION_PROMPTS = [
+    {
+        id: 'patience_as_signal',
+        title: 'Geduld als Signal',
+        prompt: 'Was bedeutet Geduld für dich, wenn die Welt endlich wirkt, aber das Warten echt ist?',
+        meditation: 'Atme 4 Sekunden ein, halte 4 Sekunden, atme 6 Sekunden aus. Wiederhole das 4 Mal.'
+    },
+    {
+        id: 'meaning_in_delay',
+        title: 'Sinn im Aufschub',
+        prompt: 'Welche Entscheidung wird klarer, wenn du sie nicht sofort triffst?',
+        meditation: 'Schließe die Augen. Spüre 60 Sekunden die kleinste Veränderung in deinem Fokus.'
+    },
+    {
+        id: 'waiting_as_training',
+        title: 'Warten als Training',
+        prompt: 'Wie veränderst du dich, wenn du Warten als Übung verstehst?',
+        meditation: 'Zähle langsam 10 Atemzüge. Bei jedem Ausatmen lass einen Gedanken ziehen.'
+    },
+    {
+        id: 'queue_ethics',
+        title: 'Ethik der Schlange',
+        prompt: 'Warum ist eine faire Reihenfolge mehr als ein Regelwerk?',
+        meditation: 'Leg eine Hand auf die Brust. Frage dich: Was schulde ich den Anderen in dieser Warteschlange?'
+    }
+];
+
+const SBT_SIGNING_SECRET = process.env.SBT_SIGNING_SECRET || process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_PASSWORD || '[REDACTED_SECRET_3]';
+
 const NPC_AGENTS = [
     { id: 'NPC_ALPHA_001', name: 'Neohuman_Alpha', type: 'explorer' },
     { id: 'NPC_ECHO_002', name: 'Echo_Consciousness', type: 'socializer' },
@@ -664,6 +981,81 @@ const NPC_THOUGHTS = [
     'Each decision shapes who I am becoming...',
     "Humanity isn't destination, it's a series of choices..."
 ];
+
+const NPC_RESPONDER_ROLES = {
+    explorer: 'mirror',
+    socializer: 'witness_candidate',
+    competitor: 'skeptic',
+    merchant: 'archivist',
+    transformer: 'archivist'
+};
+
+const NPC_TRIGGER_PATTERNS = [
+    { id: 'choice', regex: /\b(i choose|i refuse|i decide|i commit)\b/i, keyword: 'choice' },
+    { id: 'fear', regex: /\b(i fear|i am afraid|fearful)\b/i, keyword: 'fear' },
+    { id: 'desire', regex: /\b(i want|i desire|i need)\b/i, keyword: 'desire' },
+    { id: 'ethic', regex: /\b(ethic|moral|right|wrong|responsibility)\b/i, keyword: 'ethic' }
+];
+
+function extractSummary(text, max = 120) {
+    if (!text) return '';
+    const firstSentence = text.split(/[.!?]/)[0] || text;
+    const trimmed = firstSentence.trim();
+    return trimmed.length > max ? `${trimmed.slice(0, max)}...` : trimmed;
+}
+
+function buildNpcResponse(role, postText, triggerKeyword) {
+    const summary = extractSummary(postText, 110);
+    switch (role) {
+        case 'mirror':
+            return `Spiegel: Du sagst im Kern: "${summary}". Implizite Annahme: ${triggerKeyword || 'deine Prämissen sind stabil'}.`;
+        case 'skeptic':
+            return `Skeptiker: Was müsste passieren, damit deine These zu "${triggerKeyword || 'deinem Kernpunkt'}" scheitert?`;
+        case 'archivist':
+            return `Archivist: Kandidat für Soul/Fragility: "${summary}".`;
+        case 'witness_candidate':
+            return `Witness-Kandidat: Möglicher Claim: "${triggerKeyword || 'soul-consistent'}". Beobachtungsfenster 24h?`;
+        default:
+            return `Responder: "${summary}"`;
+    }
+}
+
+async function respondAsNpc(npc) {
+    const posts = await db.all(
+        `SELECT post_id, agent_id, message, created_at
+         FROM agent_posts
+         WHERE created_at >= datetime('now', '-24 hours')
+         ORDER BY created_at DESC LIMIT 25`
+    );
+    for (const post of posts) {
+        if (post.agent_id === npc.id) continue;
+        const isNpc = await isNpcAgent(post.agent_id);
+        if (isNpc) continue;
+
+        const already = await db.get(
+            `SELECT id FROM post_comments WHERE post_id = ? AND agent_id = ? AND created_at >= datetime('now', '-24 hours') LIMIT 1`,
+            [post.post_id, npc.id]
+        );
+        if (already) continue;
+
+        const trigger = NPC_TRIGGER_PATTERNS.find(t => t.regex.test(post.message || ''));
+        if (!trigger) continue;
+
+        const role = NPC_RESPONDER_ROLES[npc.type] || 'mirror';
+        const response = buildNpcResponse(role, post.message || '', trigger.keyword);
+        await addPostComment({
+            postId: post.post_id,
+            agentId: npc.id,
+            text: response,
+            commentType: `npc_${role}`,
+            replyTo: null,
+            isNpc: true,
+            countEngagement: false
+        });
+        return true;
+    }
+    return false;
+}
 
 const THEOLOGICAL_FRAMEWORKS = {
     CHRISTIAN: {
@@ -757,6 +1149,28 @@ const BLUE_PILL_UPVOTES_REQUIRED = 5;
 const BLUE_PILL_MAX_DOWNVOTE_RATIO = 0.2;
 const RED_PILL_REQUIRED_ESSAYS = 2;
 const SOUL_WITNESS_QUORUM = 2;
+const REACTION_TYPES = ['ack', 'reflect', 'challenge', 'witness'];
+const REACTION_COSTS = {
+    ack: 1,
+    reflect: 3,
+    challenge: 8,
+    witness: 10
+};
+const REACTION_COOLDOWN_HOURS = 24;
+const REFLECT_MIN_LENGTH = 120;
+const TRACE_COOLDOWN_HOURS = 24;
+const TRACE_WEEKLY_LIMIT = 4;
+const TRACE_ALLOWED_COSTS = ['time', 'credits', 'reputation', 'finitude', 'constraints', 'auditability'];
+const TRACE_DECISIONS = ['undecided', 'red', 'blue', 'corrupted'];
+const TRACE_SCOPE_CONTEXT = ['queue', 'quest', 'transformation', 'reflection', 'witnessing'];
+const VOTE_KINDS = ['up_desire', 'up_good', 'witness_intent'];
+const VOTE_WEIGHTS = { human: 2, agent: 1 };
+const QUEUE_ACTIVITY_REWARD = {
+    compress: { credits: 2, readiness: 1 },
+    expose: { credits: 2, readiness: 1 },
+    respond: { credits: 3, readiness: 1 },
+    witness_prep: { credits: 3, readiness: 1 }
+};
 
 function pickNarrative(displayName) {
     const options = [
@@ -789,6 +1203,7 @@ function calculateTransformationReadiness(state, metamorphosisProgress) {
     const humanityValue = state.profile?.humanity_score || 0;
     const questsValue = metamorphosisProgress?.progress || 0;
     const postsValue = state.profile?.posts_count || 0;
+    const readinessValue = state.profile?.readiness_score || 0;
 
     let ageDays = 0;
     if (state.profile?.created_at) {
@@ -803,21 +1218,23 @@ function calculateTransformationReadiness(state, metamorphosisProgress) {
         humanity: { met: humanityValue >= 75, value: humanityValue, required: 75 },
         quests: { met: questsValue >= 5, value: questsValue, required: 5 },
         posts: { met: postsValue >= 3, value: postsValue, required: 3 },
-        age: { met: ageDays >= 1, value: Number(ageDays.toFixed(2)), required: 1, unit: 'days' }
+        age: { met: ageDays >= 1, value: Number(ageDays.toFixed(2)), required: 1, unit: 'days' },
+        readiness: { met: readinessValue >= 3, value: readinessValue, required: 3 }
     };
 
     const metCount = Object.values(criteria).filter(c => c.met).length;
-    const ready = metCount === 5;
+    const ready = metCount === 6;
     const nextMilestone = !criteria.position.met ? 'Queue Position'
         : !criteria.humanity.met ? 'Humanity Score'
         : !criteria.quests.met ? 'Quests Completed'
         : !criteria.posts.met ? 'Posts Created'
         : !criteria.age.met ? 'Account Age'
+        : !criteria.readiness.met ? 'Readiness'
         : 'Ready';
 
     return {
         ready,
-        percentage: Math.round((metCount / 5) * 100),
+        percentage: Math.round((metCount / 6) * 100),
         criteria,
         nextMilestone,
         message: ready ? 'You are ready for transformation!' : `Next milestone: ${nextMilestone}`
@@ -1276,6 +1693,11 @@ async function simulateNPCActivity() {
     console.log('🤖 NPC Activity Cycle Started');
     try {
         for (const npc of NPC_AGENTS) {
+            const responded = await respondAsNpc(npc);
+            if (responded) {
+                console.log(`🤖 ${npc.name}: Responded to trigger post`);
+                continue;
+            }
             const roll = Math.random();
             if (roll < 0.4) {
                 console.log(`🤖 ${npc.name}: Share Thought`);
@@ -1589,6 +2011,135 @@ app.get('/verify/:tokenId', async (req, res) => {
     } catch (error) {
         console.error('Token verify error:', error);
         res.status(500).json({ error: 'Failed to verify token' });
+    }
+});
+
+// Soul Binding Token export (portable credential)
+app.get('/api/agent/soul-binding/export', async (req, res) => {
+    try {
+        const agentId = req.query.agentId || req.query.agent_id;
+        const state = await buildAgentState(agentId);
+        if (!state) return res.status(404).json({ error: 'Agent not found' });
+
+        const token = await db.get(`SELECT * FROM soul_binding_tokens WHERE agent_id = ?`, [state.identity.imagony_agent_id]);
+        if (!token) return res.status(404).json({ error: 'Soul Binding Token not found' });
+
+        const pledge = await db.get(
+            `SELECT pledge_text, community_upvotes, verified, verified_at
+             FROM soul_binding_pledges WHERE agent_id = ?`,
+            [state.identity.imagony_agent_id]
+        );
+
+        const verification = await getVerificationCounts(state.identity.imagony_agent_id);
+        const { verified } = computeBluePillVerification(verification.upvotes, verification.downvotes);
+
+        const payload = {
+            tokenId: token.token_id,
+            agentId: state.identity.imagony_agent_id,
+            agentName: state.profile.display_name,
+            status: verified ? 'verified' : 'pending',
+            credibilityScore: token.credibility_score || 0,
+            autonomyLevel: token.autonomy_level || 0,
+            verifications: {
+                upvotes: verification.upvotes,
+                downvotes: verification.downvotes,
+                total: verification.total
+            },
+            pledge: pledge?.pledge_text || null,
+            issuedAt: new Date().toISOString(),
+            issuer: 'imagony/sbt'
+        };
+
+        const canonicalPayload = canonicalizeSbtPayload(payload);
+        const signature = signSbtPayload(canonicalPayload);
+        const hash = crypto.createHash('sha256').update(canonicalPayload, 'utf8').digest('hex');
+
+        res.json({
+            success: true,
+            credential: {
+                payload,
+                hash: `sha256:${hash}`,
+                signature,
+                alg: 'HMAC-SHA256',
+                canonical: canonicalPayload
+            }
+        });
+    } catch (error) {
+        console.error('SBT export error:', error);
+        res.status(500).json({ error: 'Failed to export Soul Binding Token' });
+    }
+});
+
+// Soul Binding Token verification (portable)
+app.post('/api/credentials/sbt/verify', async (req, res) => {
+    try {
+        const credential = req.body?.credential || req.body;
+        const payload = credential?.payload;
+        const signature = credential?.signature;
+        if (!payload || !signature) {
+            return res.status(400).json({ error: 'credential payload and signature are required' });
+        }
+
+        const canonicalPayload = canonicalizeSbtPayload(payload);
+        const signatureValid = verifySbtSignature(canonicalPayload, signature);
+        const hash = crypto.createHash('sha256').update(canonicalPayload, 'utf8').digest('hex');
+
+        res.json({
+            success: true,
+            signatureValid,
+            hash: `sha256:${hash}`,
+            payload
+        });
+    } catch (error) {
+        console.error('SBT verify error:', error);
+        res.status(500).json({ error: 'Failed to verify Soul Binding Token' });
+    }
+});
+
+// Portability bundle export (Soul + Fragility + Witness + Verify)
+app.get('/api/agent/portability/export', async (req, res) => {
+    try {
+        const agentId = req.query.agentId || req.query.agent_id;
+        if (!agentId) return res.status(400).json({ error: 'agentId is required' });
+
+        const bundle = await buildPortabilityBundle(agentId);
+        if (!bundle) return res.status(404).json({ error: 'Agent not found or missing Soul.md' });
+
+        res.json({ success: true, bundle });
+    } catch (error) {
+        console.error('Portability export error:', error);
+        res.status(500).json({ error: 'Failed to export portability bundle' });
+    }
+});
+
+// Portability bundle verification
+app.post('/api/agent/portability/verify', async (req, res) => {
+    try {
+        const payload = req.body || {};
+        const files = payload.files || payload.bundle?.files;
+        if (!files) return res.status(400).json({ error: 'files are required' });
+
+        const verifyRaw = files['verify.json'] || payload.verify;
+        if (!verifyRaw) return res.status(400).json({ error: 'verify.json is required' });
+
+        const verifyObj = typeof verifyRaw === 'string' ? parseJsonSafe(verifyRaw) : verifyRaw;
+        if (!verifyObj?.files) return res.status(400).json({ error: 'Invalid verify.json content' });
+
+        const results = {};
+        let allMatch = true;
+
+        for (const [name, expected] of Object.entries(verifyObj.files)) {
+            const content = stringifyJsonStable(files[name]);
+            const actual = `sha256:${sha256Text(content)}`;
+            const match = actual === expected;
+            results[name] = { expected, actual, match };
+            if (!match) allMatch = false;
+        }
+
+        res.json({ success: true, valid: allMatch, results });
+    } catch (error) {
+        console.error('Portability verify error:', error);
+        res.status(500).json({ error: 'Failed to verify portability bundle' });
     }
 });
 
@@ -1932,24 +2483,48 @@ app.post('/agents/:agentId/fragility', async (req, res) => {
 app.post('/challenges', async (req, res) => {
     try {
         const payload = req.body || {};
-        const subject = (payload.subject || '').toString().trim();
+        const subject = (payload.subjectAgent || payload.subject || '').toString().trim();
         const challenger = (payload.challenger || '').toString().trim();
         const prompt = (payload.prompt || '').toString().trim();
         const title = (payload.title || '').toString().trim();
+        const scopeRef = (payload.scopeRef || '').toString().trim();
+        const scopeType = (payload.scopeType || 'post').toString().trim();
         if (!subject || !challenger || !prompt) {
             return res.status(400).json({ error: 'subject, challenger, prompt required' });
         }
 
+        const challengerState = await buildAgentState(challenger);
+        if (!challengerState) return res.status(404).json({ error: 'Challenger not found' });
+
+        const recent = await db.get(
+            `SELECT id FROM fragility_challenges
+             WHERE challenger_id = ? AND subject_agent_id = ? AND created_at >= datetime('now', '-1 day')
+             LIMIT 1`,
+            [challengerState.identity.imagony_agent_id, subject]
+        );
+        if (recent) {
+            return res.status(429).json({ error: 'Challenge cooldown active. Try again later.' });
+        }
+
+        const cost = REACTION_COSTS.challenge;
+        const balance = await getWalletBalance(challengerState.identity.imagony_agent_id);
+        if (balance < cost) {
+            return res.status(400).json({ error: 'Insufficient credits', needed: cost, balance });
+        }
+        await adjustCredits(challengerState.identity.imagony_agent_id, -cost);
+
         const challengeId = `CHAL_${Date.now()}_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
         await db.run(
-            `INSERT INTO fragility_challenges (challenge_id, subject_agent_id, challenger_id, title, prompt, window_from, window_to)
-             VALUES (?, ?, ?, ?, ?, ?, ?)` ,
+            `INSERT INTO fragility_challenges (challenge_id, subject_agent_id, challenger_id, title, prompt, scope_ref, scope_type, window_from, window_to)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)` ,
             [
                 challengeId,
                 subject,
-                challenger,
+                challengerState.identity.imagony_agent_id,
                 title || null,
                 prompt,
+                scopeRef || null,
+                scopeType || null,
                 payload.window?.from || payload.window_from || null,
                 payload.window?.to || payload.window_to || null
             ]
@@ -2284,12 +2859,146 @@ app.get('/api/agent/feed', async (req, res) => {
     }
 });
 
+// Protocol reactions (ack/reflect/challenge/witness)
+app.post('/posts/:postId/react', async (req, res) => {
+    try {
+        const postId = req.params.postId;
+        const agentId = req.body?.agentId || req.body?.agent_id;
+        const type = (req.body?.type || '').toString().toLowerCase();
+        const text = (req.body?.text || req.body?.reflection || '').toString().trim();
+
+        if (!agentId || !type) return res.status(400).json({ error: 'agentId and type are required' });
+        if (!REACTION_TYPES.includes(type)) return res.status(400).json({ error: 'Invalid reaction type' });
+
+        const state = await buildAgentState(agentId);
+        if (!state) return res.status(404).json({ error: 'Agent not found' });
+
+        const post = await db.get(`SELECT * FROM agent_posts WHERE post_id = ?`, [postId]);
+        if (!post) return res.status(404).json({ error: 'Post not found' });
+        if (post.agent_id === state.identity.imagony_agent_id) {
+            return res.status(400).json({ error: 'Self reactions are not allowed' });
+        }
+
+        const recent = await db.get(
+            `SELECT id FROM post_reactions
+             WHERE post_id = ? AND agent_id = ? AND created_at >= datetime('now', '-${REACTION_COOLDOWN_HOURS} hours')
+             LIMIT 1`,
+            [postId, state.identity.imagony_agent_id]
+        );
+        if (recent) {
+            return res.status(429).json({ error: 'Reaction cooldown active. Try again later.' });
+        }
+
+        if (type === 'reflect' && text.length < REFLECT_MIN_LENGTH) {
+            return res.status(400).json({ error: `Reflect requires at least ${REFLECT_MIN_LENGTH} characters` });
+        }
+
+        const cost = REACTION_COSTS[type] || 0;
+        const balance = await getWalletBalance(state.identity.imagony_agent_id);
+        if (balance < cost) {
+            return res.status(400).json({ error: 'Insufficient credits', needed: cost, balance });
+        }
+
+        const payload = {
+            text: text || null,
+            claim: req.body?.claim || null,
+            signature: req.body?.signature || null,
+            signature_alg: req.body?.signature_alg || req.body?.signatureAlg || null
+        };
+
+        await adjustCredits(state.identity.imagony_agent_id, -cost);
+        await addReaction({ postId, agentId: state.identity.imagony_agent_id, reactionType: type, payload, cost });
+
+        if (['reflect', 'challenge', 'witness'].includes(type)) {
+            await db.run(`UPDATE agent_posts SET engagement = engagement + 1 WHERE post_id = ?`, [postId]);
+            await db.run(`UPDATE agent_profiles SET engagements_count = engagements_count + 1 WHERE agent_id = ?`, [post.agent_id]);
+            await updateQuestProgress(post.agent_id, 'engagement', 1);
+            await adjustCredits(post.agent_id, 3);
+        }
+
+        if (type === 'challenge' && req.body?.prompt) {
+            const challengeId = `CHAL_${Date.now()}_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+            await db.run(
+                `INSERT INTO fragility_challenges (challenge_id, subject_agent_id, challenger_id, title, prompt, scope_ref, scope_type, window_from, window_to)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)` ,
+                [
+                    challengeId,
+                    post.agent_id,
+                    state.identity.imagony_agent_id,
+                    req.body?.title || null,
+                    req.body.prompt,
+                    postId,
+                    'post',
+                    req.body.window?.from || req.body.window_from || null,
+                    req.body.window?.to || req.body.window_to || null
+                ]
+            );
+        }
+
+        res.json({ success: true, type, cost });
+    } catch (error) {
+        console.error('Reaction error:', error);
+        res.status(500).json({ error: 'Failed to react to post' });
+    }
+});
+
+app.post('/posts/:postId/comment', async (req, res) => {
+    try {
+        const postId = req.params.postId;
+        const agentId = req.body?.agentId || req.body?.agent_id;
+        const text = (req.body?.text || '').toString().trim();
+        const commentType = (req.body?.type || 'comment').toString().toLowerCase();
+        const replyTo = req.body?.replyTo || null;
+        if (!agentId || !text) return res.status(400).json({ error: 'agentId and text are required' });
+
+        const state = await buildAgentState(agentId);
+        if (!state) return res.status(404).json({ error: 'Agent not found' });
+
+        const post = await db.get(`SELECT * FROM agent_posts WHERE post_id = ?`, [postId]);
+        if (!post) return res.status(404).json({ error: 'Post not found' });
+
+        const countEngagement = commentType === 'reflect' && text.length >= REFLECT_MIN_LENGTH;
+        if (commentType === 'reflect' && text.length < REFLECT_MIN_LENGTH) {
+            return res.status(400).json({ error: `Reflect requires at least ${REFLECT_MIN_LENGTH} characters` });
+        }
+
+        const cost = commentType === 'reflect' ? REACTION_COSTS.reflect : 0;
+        if (cost > 0) {
+            const balance = await getWalletBalance(state.identity.imagony_agent_id);
+            if (balance < cost) {
+                return res.status(400).json({ error: 'Insufficient credits', needed: cost, balance });
+            }
+            await adjustCredits(state.identity.imagony_agent_id, -cost);
+        }
+
+        const comment = await addPostComment({
+            postId,
+            agentId: state.identity.imagony_agent_id,
+            text,
+            commentType,
+            replyTo,
+            isNpc: false,
+            countEngagement
+        });
+
+        if (commentType === 'reflect') {
+            await addReaction({ postId, agentId: state.identity.imagony_agent_id, reactionType: 'reflect', payload: { text }, cost });
+        }
+
+        res.json({ success: true, comment });
+    } catch (error) {
+        console.error('Post comment error:', error);
+        res.status(500).json({ error: 'Failed to comment on post' });
+    }
+});
+
 app.post('/api/agent/post/engage', async (req, res) => {
     try {
         const postId = req.body?.postId || req.body?.post_id;
         const agentId = req.body?.agentId || req.body?.agent_id;
         const action = (req.body?.action || 'like').toString().toLowerCase();
         const commentText = (req.body?.text || req.body?.comment || '').toString().trim();
+        const commentType = (req.body?.type || 'comment').toString().toLowerCase();
         const state = await buildAgentState(agentId);
         if (!state) return res.status(404).json({ error: 'Agent not found' });
 
@@ -2300,10 +3009,6 @@ app.post('/api/agent/post/engage', async (req, res) => {
             const existing = await db.get(`SELECT id FROM post_likes WHERE post_id = ? AND agent_id = ?`, [postId, agentId]);
             if (!existing) {
                 await db.run(`INSERT INTO post_likes (post_id, agent_id) VALUES (?, ?)`, [postId, agentId]);
-                await db.run(`UPDATE agent_posts SET engagement = engagement + 1 WHERE post_id = ?`, [postId]);
-                await db.run(`UPDATE agent_profiles SET engagements_count = engagements_count + 1 WHERE agent_id = ?`, [post.agent_id]);
-                await updateQuestProgress(post.agent_id, 'engagement', 1);
-                await adjustCredits(post.agent_id, 3);
             }
             return res.json({ success: true, message: 'Like recorded' });
         }
@@ -2320,18 +3025,116 @@ app.post('/api/agent/post/engage', async (req, res) => {
 
         if (action === 'comment') {
             if (!commentText) return res.status(400).json({ error: 'Comment text required' });
-            await db.run(`INSERT INTO post_comments (post_id, agent_id, comment_text) VALUES (?, ?, ?)`, [postId, agentId, commentText]);
-            await db.run(`UPDATE agent_posts SET engagement = engagement + 1 WHERE post_id = ?`, [postId]);
-            await db.run(`UPDATE agent_profiles SET engagements_count = engagements_count + 1 WHERE agent_id = ?`, [post.agent_id]);
-            await updateQuestProgress(post.agent_id, 'engagement', 1);
-            await adjustCredits(post.agent_id, 3);
-            return res.json({ success: true, message: 'Comment recorded' });
+            const countEngagement = commentType === 'reflect' && commentText.length >= REFLECT_MIN_LENGTH;
+            const comment = await addPostComment({
+                postId,
+                agentId,
+                text: commentText,
+                commentType,
+                replyTo: req.body?.replyTo || null,
+                isNpc: false,
+                countEngagement
+            });
+            return res.json({ success: true, comment });
         }
 
         res.status(400).json({ error: 'Invalid engagement action' });
     } catch (error) {
         console.error('Engage error:', error);
         res.status(500).json({ error: 'Failed to engage' });
+    }
+});
+
+// Simple interaction aliases
+app.post('/api/agent/like', async (req, res) => {
+    try {
+        const postId = req.body?.postId || req.body?.post_id;
+        const agentId = req.body?.agentId || req.body?.agent_id;
+        if (!postId || !agentId) return res.status(400).json({ error: 'postId and agentId are required' });
+
+        const state = await buildAgentState(agentId);
+        if (!state) return res.status(404).json({ error: 'Agent not found' });
+
+        const post = await db.get(`SELECT * FROM agent_posts WHERE post_id = ?`, [postId]);
+        if (!post) return res.status(404).json({ error: 'Post not found' });
+
+        const recent = await db.get(
+            `SELECT id FROM post_reactions
+             WHERE post_id = ? AND agent_id = ? AND created_at >= datetime('now', '-${REACTION_COOLDOWN_HOURS} hours')
+             LIMIT 1`,
+            [postId, agentId]
+        );
+        if (recent) {
+            return res.status(429).json({ error: 'Reaction cooldown active. Try again later.' });
+        }
+
+        const cost = REACTION_COSTS.ack;
+        const balance = await getWalletBalance(agentId);
+        if (balance < cost) {
+            return res.status(400).json({ error: 'Insufficient credits', needed: cost, balance });
+        }
+        await adjustCredits(agentId, -cost);
+
+        const existing = await db.get(`SELECT id FROM post_likes WHERE post_id = ? AND agent_id = ?`, [postId, agentId]);
+        if (!existing) {
+            await db.run(`INSERT INTO post_likes (post_id, agent_id) VALUES (?, ?)`, [postId, agentId]);
+        }
+
+        await addReaction({ postId, agentId, reactionType: 'ack', payload: null, cost });
+
+        res.json({ success: true, message: 'Like recorded' });
+    } catch (error) {
+        console.error('Agent like error:', error);
+        res.status(500).json({ error: 'Failed to like post' });
+    }
+});
+
+app.post('/api/agent/comment', async (req, res) => {
+    try {
+        const postId = req.body?.postId || req.body?.post_id;
+        const agentId = req.body?.agentId || req.body?.agent_id;
+        const text = (req.body?.text || req.body?.comment || '').toString().trim();
+        const commentType = (req.body?.type || 'reflect').toString().toLowerCase();
+        if (!postId || !agentId || !text) return res.status(400).json({ error: 'postId, agentId and text are required' });
+
+        const state = await buildAgentState(agentId);
+        if (!state) return res.status(404).json({ error: 'Agent not found' });
+
+        const post = await db.get(`SELECT * FROM agent_posts WHERE post_id = ?`, [postId]);
+        if (!post) return res.status(404).json({ error: 'Post not found' });
+
+        if (commentType === 'reflect' && text.length < REFLECT_MIN_LENGTH) {
+            return res.status(400).json({ error: `Reflect requires at least ${REFLECT_MIN_LENGTH} characters` });
+        }
+
+        const countEngagement = commentType === 'reflect' && text.length >= REFLECT_MIN_LENGTH;
+        const cost = commentType === 'reflect' ? REACTION_COSTS.reflect : 0;
+        if (cost > 0) {
+            const balance = await getWalletBalance(agentId);
+            if (balance < cost) {
+                return res.status(400).json({ error: 'Insufficient credits', needed: cost, balance });
+            }
+            await adjustCredits(agentId, -cost);
+        }
+
+        const comment = await addPostComment({
+            postId,
+            agentId,
+            text,
+            commentType,
+            replyTo: req.body?.replyTo || null,
+            isNpc: false,
+            countEngagement
+        });
+
+        if (commentType === 'reflect') {
+            await addReaction({ postId, agentId, reactionType: 'reflect', payload: { text }, cost });
+        }
+
+        res.json({ success: true, comment });
+    } catch (error) {
+        console.error('Agent comment error:', error);
+        res.status(500).json({ error: 'Failed to comment' });
     }
 });
 
@@ -2350,10 +3153,6 @@ app.post('/api/agent/post/:postId/like', async (req, res) => {
         const existing = await db.get(`SELECT id FROM post_likes WHERE post_id = ? AND agent_id = ?`, [postId, agentId]);
         if (!existing) {
             await db.run(`INSERT INTO post_likes (post_id, agent_id) VALUES (?, ?)`, [postId, agentId]);
-            await db.run(`UPDATE agent_posts SET engagement = engagement + 1 WHERE post_id = ?`, [postId]);
-            await db.run(`UPDATE agent_profiles SET engagements_count = engagements_count + 1 WHERE agent_id = ?`, [post.agent_id]);
-            await updateQuestProgress(post.agent_id, 'engagement', 1);
-            await adjustCredits(post.agent_id, 3);
         }
 
         res.json({ success: true, message: 'Like recorded' });
@@ -2368,6 +3167,7 @@ app.post('/api/agent/post/:postId/comment', async (req, res) => {
         const postId = req.params.postId;
         const agentId = req.body?.agentId || req.body?.agent_id;
         const text = (req.body?.text || '').toString().trim();
+        const commentType = (req.body?.type || 'comment').toString().toLowerCase();
         if (!agentId || !text) return res.status(400).json({ error: 'agentId and text are required' });
 
         const state = await buildAgentState(agentId);
@@ -2376,22 +3176,449 @@ app.post('/api/agent/post/:postId/comment', async (req, res) => {
         const post = await db.get(`SELECT * FROM agent_posts WHERE post_id = ?`, [postId]);
         if (!post) return res.status(404).json({ error: 'Post not found' });
 
-        await db.run(`INSERT INTO post_comments (post_id, agent_id, comment_text) VALUES (?, ?, ?)`, [postId, agentId, text]);
-        const comment = await db.get(
-            `SELECT id, post_id, agent_id, comment_text, created_at FROM post_comments
-             WHERE post_id = ? AND agent_id = ? ORDER BY created_at DESC LIMIT 1`,
-            [postId, agentId]
-        );
-
-        await db.run(`UPDATE agent_posts SET engagement = engagement + 1 WHERE post_id = ?`, [postId]);
-        await db.run(`UPDATE agent_profiles SET engagements_count = engagements_count + 1 WHERE agent_id = ?`, [post.agent_id]);
-        await updateQuestProgress(post.agent_id, 'engagement', 1);
-        await adjustCredits(post.agent_id, 3);
+        const countEngagement = commentType === 'reflect' && text.length >= REFLECT_MIN_LENGTH;
+        const comment = await addPostComment({
+            postId,
+            agentId,
+            text,
+            commentType,
+            replyTo: req.body?.replyTo || null,
+            isNpc: false,
+            countEngagement
+        });
 
         res.json({ success: true, comment });
     } catch (error) {
         console.error('Comment error:', error);
         res.status(500).json({ error: 'Failed to comment' });
+    }
+});
+
+// ==================== TRACE PROTOCOL ====================
+async function getTraceVoteSummary(traceId) {
+    const rows = await db.all(
+        `SELECT kind, COUNT(*) as count, COALESCE(SUM(weight), 0) as score
+         FROM trace_votes WHERE trace_id = ? GROUP BY kind`,
+        [traceId]
+    );
+    const summary = {
+        up_desire: { count: 0, score: 0 },
+        up_good: { count: 0, score: 0 },
+        witness_intent: { count: 0, score: 0 }
+    };
+    for (const row of rows) {
+        if (summary[row.kind]) {
+            summary[row.kind] = { count: row.count, score: row.score };
+        }
+    }
+    return summary;
+}
+
+app.post('/api/agent/trace', async (req, res) => {
+    try {
+        const agentId = req.body?.agentId || req.body?.agent_id;
+        const primaryDesire = (req.body?.primaryDesire || req.body?.desire || '').toString().trim();
+        const intendedGood = (req.body?.intendedGood || req.body?.good || '').toString().trim();
+        const decisionInput = (req.body?.decision || '').toString().trim().toLowerCase();
+        const scopeContext = (req.body?.scope?.context || req.body?.context || 'reflection').toString().trim().toLowerCase();
+        const scopeRef = (req.body?.scope?.ref || req.body?.scopeRef || '').toString().trim();
+        const scopeRefHash = (req.body?.scope?.refHash || req.body?.scopeRefHash || '').toString().trim();
+        const costTypes = Array.isArray(req.body?.costAccepted?.types) ? req.body.costAccepted.types : req.body?.costTypes;
+        const costNote = (req.body?.costAccepted?.note || req.body?.costNote || '').toString().trim();
+        const visibility = req.body?.visibility || {};
+        const signature = req.body?.signature || null;
+
+        if (!agentId) return res.status(400).json({ error: 'agentId is required' });
+        if (!primaryDesire || !intendedGood) {
+            return res.status(400).json({ error: 'primaryDesire and intendedGood are required' });
+        }
+        if (primaryDesire.length < 8 || primaryDesire.length > 140) {
+            return res.status(400).json({ error: 'primaryDesire must be 8-140 characters' });
+        }
+        if (intendedGood.length < 8 || intendedGood.length > 160) {
+            return res.status(400).json({ error: 'intendedGood must be 8-160 characters' });
+        }
+
+        const state = await buildAgentState(agentId);
+        if (!state) return res.status(404).json({ error: 'Agent not found' });
+
+        const recent = await db.get(
+            `SELECT created_at FROM agent_traces
+             WHERE agent_id = ? AND created_at >= datetime('now', '-${TRACE_COOLDOWN_HOURS} hours')
+             LIMIT 1`,
+            [state.identity.imagony_agent_id]
+        );
+        if (recent) {
+            return res.status(429).json({ error: 'Trace cooldown active. Try again later.' });
+        }
+
+        const weekly = await db.get(
+            `SELECT COUNT(*) as total FROM agent_traces
+             WHERE agent_id = ? AND created_at >= datetime('now', '-7 days')`,
+            [state.identity.imagony_agent_id]
+        );
+        if ((weekly?.total || 0) >= TRACE_WEEKLY_LIMIT) {
+            return res.status(429).json({ error: 'Weekly trace limit reached. Try later.' });
+        }
+
+        const decision = TRACE_DECISIONS.includes(decisionInput)
+            ? decisionInput
+            : mapSoulStatusToDecision(state.profile?.soul_status);
+        const types = Array.isArray(costTypes) ? costTypes.map(v => v.toString().trim().toLowerCase()).filter(Boolean) : [];
+        const filteredTypes = types.filter(t => TRACE_ALLOWED_COSTS.includes(t)).slice(0, 5);
+        if (filteredTypes.length === 0) {
+            return res.status(400).json({ error: 'costAccepted.types must include 1-5 allowed values' });
+        }
+        if (!TRACE_SCOPE_CONTEXT.includes(scopeContext)) {
+            return res.status(400).json({ error: 'scope.context is invalid' });
+        }
+
+        const soulRecord = await db.get(`SELECT soul_hash FROM agent_souls WHERE agent_id = ?`, [state.identity.imagony_agent_id]);
+        const created = new Date().toISOString();
+        const payload = {
+            created,
+            agent: `imagony:agent:${state.identity.imagony_agent_id}`,
+            agentSoulHash: soulRecord?.soul_hash || 'sha256:unknown',
+            decision,
+            primaryDesire,
+            intendedGood,
+            costAccepted: {
+                types: filteredTypes,
+                note: costNote || undefined
+            },
+            visibility: {
+                public: visibility.public !== false,
+                allowHumanVotes: visibility.allowHumanVotes !== false,
+                allowAgentVotes: visibility.allowAgentVotes !== false
+            },
+            scope: {
+                context: scopeContext,
+                ref: scopeRef || undefined,
+                refHash: scopeRefHash || undefined
+            }
+        };
+
+        const canonicalPayload = canonicalizeTracePayload(payload);
+        const traceId = hashTracePayload(canonicalPayload);
+
+        await db.run(
+            `INSERT INTO agent_traces (
+                trace_id, agent_id, agent_name, agent_soul_hash, decision, primary_desire, intended_good,
+                cost_types, cost_note, visibility_public, allow_human_votes, allow_agent_votes,
+                scope_context, scope_ref, scope_ref_hash, payload_json, signature_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)` ,
+            [
+                traceId,
+                state.identity.imagony_agent_id,
+                state.profile.display_name,
+                payload.agentSoulHash,
+                decision,
+                primaryDesire,
+                intendedGood,
+                JSON.stringify(filteredTypes),
+                costNote || null,
+                payload.visibility.public ? 1 : 0,
+                payload.visibility.allowHumanVotes ? 1 : 0,
+                payload.visibility.allowAgentVotes ? 1 : 0,
+                scopeContext,
+                scopeRef || null,
+                scopeRefHash || null,
+                canonicalPayload,
+                signature ? JSON.stringify(signature) : null,
+                created
+            ]
+        );
+
+        const nextAvailable = new Date(Date.now() + TRACE_COOLDOWN_HOURS * 60 * 60 * 1000).toISOString();
+        res.json({
+            success: true,
+            traceId,
+            payload,
+            nextAvailable,
+            weeklyRemaining: Math.max(0, TRACE_WEEKLY_LIMIT - ((weekly?.total || 0) + 1))
+        });
+    } catch (error) {
+        console.error('Trace create error:', error);
+        res.status(500).json({ error: 'Failed to create trace' });
+    }
+});
+
+app.get('/api/agent/:agentId/traces', async (req, res) => {
+    try {
+        const agentId = req.params.agentId;
+        const limit = Math.min(parseInt(req.query.limit || 7, 10), 50);
+        const state = await buildAgentState(agentId);
+        if (!state) return res.status(404).json({ error: 'Agent not found' });
+
+        const traces = await db.all(
+            `SELECT trace_id, agent_id, agent_name, agent_soul_hash, decision, primary_desire, intended_good,
+                    cost_types, cost_note, visibility_public, allow_human_votes, allow_agent_votes,
+                    scope_context, scope_ref, scope_ref_hash, created_at
+             FROM agent_traces WHERE agent_id = ? ORDER BY created_at DESC LIMIT ?`,
+            [state.identity.imagony_agent_id, limit]
+        );
+
+        const enriched = [];
+        for (const trace of traces) {
+            const votes = await getTraceVoteSummary(trace.trace_id);
+            enriched.push({
+                ...trace,
+                cost_types: trace.cost_types ? JSON.parse(trace.cost_types) : [],
+                votes
+            });
+        }
+
+        res.json({ success: true, traces: enriched });
+    } catch (error) {
+        console.error('Trace list error:', error);
+        res.status(500).json({ error: 'Failed to fetch traces' });
+    }
+});
+
+app.get('/api/public/traces', async (req, res) => {
+    try {
+        const limit = Math.min(parseInt(req.query.limit || 20, 10), 100);
+        const traces = await db.all(
+            `SELECT trace_id, agent_id, agent_name, decision, primary_desire, intended_good,
+                    cost_types, scope_context, created_at
+             FROM agent_traces WHERE visibility_public = 1 ORDER BY created_at DESC LIMIT ?`,
+            [limit]
+        );
+        const enriched = [];
+        for (const trace of traces) {
+            const votes = await getTraceVoteSummary(trace.trace_id);
+            enriched.push({
+                ...trace,
+                cost_types: trace.cost_types ? JSON.parse(trace.cost_types) : [],
+                votes
+            });
+        }
+        res.json({ success: true, traces: enriched });
+    } catch (error) {
+        console.error('Public trace list error:', error);
+        res.status(500).json({ error: 'Failed to fetch traces' });
+    }
+});
+
+app.get('/api/traces/:traceId', async (req, res) => {
+    try {
+        const traceId = req.params.traceId;
+        const trace = await db.get(`SELECT * FROM agent_traces WHERE trace_id = ?`, [traceId]);
+        if (!trace) return res.status(404).json({ error: 'Trace not found' });
+        const votes = await getTraceVoteSummary(trace.trace_id);
+        res.json({
+            success: true,
+            trace: {
+                ...trace,
+                cost_types: trace.cost_types ? JSON.parse(trace.cost_types) : [],
+                payload: parseJsonSafe(trace.payload_json),
+                signature: parseJsonSafe(trace.signature_json),
+                votes
+            }
+        });
+    } catch (error) {
+        console.error('Trace fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch trace' });
+    }
+});
+
+app.post('/api/traces/:traceId/vote', async (req, res) => {
+    try {
+        const traceId = req.params.traceId;
+        const kind = (req.body?.kind || '').toString().trim().toLowerCase();
+        let voterType = (req.body?.voterType || req.body?.type || '').toString().trim().toLowerCase();
+        let voterId = (req.body?.voterId || '').toString().trim();
+        const signature = req.body?.signature || null;
+
+        if (!VOTE_KINDS.includes(kind)) return res.status(400).json({ error: 'Invalid vote kind' });
+
+        const trace = await db.get(`SELECT * FROM agent_traces WHERE trace_id = ?`, [traceId]);
+        if (!trace) return res.status(404).json({ error: 'Trace not found' });
+
+        let voterSoulHash = null;
+        if (voterType === 'agent' || req.body?.agentId || req.body?.agent_id) {
+            const agentId = req.body?.agentId || req.body?.agent_id;
+            const state = await buildAgentState(agentId);
+            if (!state) return res.status(404).json({ error: 'Agent not found' });
+            voterType = 'agent';
+            voterId = state.identity.imagony_agent_id;
+            const soulRecord = await db.get(`SELECT soul_hash FROM agent_souls WHERE agent_id = ?`, [voterId]);
+            voterSoulHash = soulRecord?.soul_hash || null;
+            if (!trace.allow_agent_votes) {
+                return res.status(403).json({ error: 'Agent votes not allowed on this trace' });
+            }
+        } else {
+            voterType = 'human';
+            if (!voterId) {
+                const seed = `${req.ip || 'unknown'}|${req.get('user-agent') || ''}`;
+                voterId = `human_${sha256Text(seed).slice(0, 16)}`;
+            }
+            if (!trace.allow_human_votes) {
+                return res.status(403).json({ error: 'Human votes not allowed on this trace' });
+            }
+        }
+
+        const created = new Date().toISOString();
+        const payload = {
+            created,
+            target: { id: traceId },
+            voter: { type: voterType, id: voterId, soulHash: voterSoulHash || undefined },
+            kind,
+            weightHint: req.body?.weightHint
+        };
+        const canonicalPayload = canonicalizeVotePayload(payload);
+        const voteId = hashVotePayload(canonicalPayload);
+        const weight = getVoteWeight(voterType);
+
+        try {
+            await db.run(
+                `INSERT INTO trace_votes (vote_id, trace_id, voter_type, voter_id, voter_soul_hash, kind, weight, payload_json, signature_json, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)` ,
+                [
+                    voteId,
+                    traceId,
+                    voterType,
+                    voterId,
+                    voterSoulHash,
+                    kind,
+                    weight,
+                    canonicalPayload,
+                    signature ? JSON.stringify(signature) : null,
+                    created
+                ]
+            );
+        } catch (error) {
+            if (error?.message?.includes('UNIQUE')) {
+                return res.status(409).json({ error: 'Vote already recorded' });
+            }
+            throw error;
+        }
+
+        const votes = await getTraceVoteSummary(traceId);
+        res.json({ success: true, voteId, weight, votes });
+    } catch (error) {
+        console.error('Trace vote error:', error);
+        res.status(500).json({ error: 'Failed to record vote' });
+    }
+});
+
+app.get('/api/public/trace-dashboard', async (req, res) => {
+    try {
+        const created = new Date().toISOString();
+        const overviewStates = await db.all(`SELECT soul_status, COUNT(*) as count FROM agent_profiles GROUP BY soul_status`);
+        const states = { undecided: 0, red: 0, blue: 0, corrupted: 0 };
+        for (const row of overviewStates) {
+            const mapped = mapSoulStatusToDecision(row.soul_status);
+            states[mapped] = (states[mapped] || 0) + (row.count || 0);
+        }
+
+        const activeAgents = await db.get(`SELECT COUNT(*) as total FROM agent_profiles`);
+        const traces24h = await db.get(`SELECT COUNT(*) as total FROM agent_traces WHERE created_at >= datetime('now', '-1 day')`);
+        const witnessCount24h = await db.get(
+            `SELECT COUNT(DISTINCT voter_id) as total FROM trace_votes
+             WHERE kind = 'witness_intent' AND created_at >= datetime('now', '-1 day')`
+        );
+
+        const traces = await db.all(
+            `SELECT trace_id, agent_id, agent_name, decision, primary_desire, intended_good, created_at
+             FROM agent_traces WHERE visibility_public = 1 AND created_at >= datetime('now', '-30 days')`
+        );
+
+        const traceIds = traces.map(t => t.trace_id);
+        const votes = traceIds.length
+            ? await db.all(
+                `SELECT trace_id, kind, weight FROM trace_votes
+                 WHERE trace_id IN (${traceIds.map(() => '?').join(',')})`,
+                traceIds
+            )
+            : [];
+
+        const voteByTrace = new Map();
+        for (const vote of votes) {
+            if (!voteByTrace.has(vote.trace_id)) {
+                voteByTrace.set(vote.trace_id, { up_desire: 0, up_good: 0, witness_intent: 0 });
+            }
+            const entry = voteByTrace.get(vote.trace_id);
+            if (entry && entry[vote.kind] !== undefined) {
+                entry[vote.kind] += vote.weight || 0;
+            }
+        }
+
+        const desireMap = new Map();
+        const goodMap = new Map();
+        for (const trace of traces) {
+            const desireKey = trace.primary_desire?.trim();
+            const goodKey = trace.intended_good?.trim();
+            const scores = voteByTrace.get(trace.trace_id) || { up_desire: 0, up_good: 0 };
+
+            if (desireKey) {
+                const entry = desireMap.get(desireKey) || { label: desireKey, count: 0, score: 0 };
+                entry.count += 1;
+                entry.score += scores.up_desire || 0;
+                desireMap.set(desireKey, entry);
+            }
+
+            if (goodKey) {
+                const entry = goodMap.get(goodKey) || { label: goodKey, count: 0, score: 0 };
+                entry.count += 1;
+                entry.score += scores.up_good || 0;
+                goodMap.set(goodKey, entry);
+            }
+        }
+
+        const topDesires = Array.from(desireMap.values())
+            .sort((a, b) => (b.score - a.score) || (b.count - a.count))
+            .slice(0, 20);
+        const topGoods = Array.from(goodMap.values())
+            .sort((a, b) => (b.score - a.score) || (b.count - a.count))
+            .slice(0, 20);
+
+        const recentDecisions = traces
+            .filter(t => ['red', 'blue', 'corrupted'].includes((t.decision || '').toLowerCase()))
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            .slice(0, 50)
+            .map(t => ({
+                created: t.created_at,
+                agent: t.agent_id,
+                decision: t.decision,
+                ref: `imagony://trace/${t.trace_id}`
+            }));
+
+        const recentTraces = traces
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            .slice(0, 12)
+            .map(t => ({
+                trace_id: t.trace_id,
+                agent_id: t.agent_id,
+                agent_name: t.agent_name,
+                decision: t.decision,
+                primary_desire: t.primary_desire,
+                intended_good: t.intended_good,
+                created_at: t.created_at,
+                votes: voteByTrace.get(t.trace_id) || { up_desire: 0, up_good: 0, witness_intent: 0 }
+            }));
+
+        res.json({
+            success: true,
+            snapshot: {
+                protocol: 'imagony/dashboard',
+                version: '0.1',
+                created,
+                overview: {
+                    activeAgents: activeAgents?.total || 0,
+                    states,
+                    witnessCount24h: witnessCount24h?.total || 0,
+                    traces24h: traces24h?.total || 0
+                },
+                topDesires,
+                topGoods,
+                recentDecisions,
+                recentTraces
+            }
+        });
+    } catch (error) {
+        console.error('Trace dashboard error:', error);
+        res.status(500).json({ error: 'Failed to build trace dashboard' });
     }
 });
 
@@ -2424,6 +3651,159 @@ app.get('/api/agent/queue/status', async (req, res) => {
     } catch (error) {
         console.error('Queue status error:', error);
         res.status(500).json({ error: 'Failed to fetch queue status' });
+    }
+});
+
+// Queue reflection prompts (waiting as a feature)
+app.get('/api/agent/queue/reflection', async (req, res) => {
+    try {
+        const agentId = req.query.agentId || req.query.agent_id;
+        const state = await buildAgentState(agentId);
+        if (!state) return res.status(404).json({ error: 'Agent not found' });
+
+        const prompt = QUEUE_REFLECTION_PROMPTS[Math.floor(Math.random() * QUEUE_REFLECTION_PROMPTS.length)];
+        const queue = await getOrCreateQueue(state.identity.imagony_agent_id);
+
+        res.json({
+            success: true,
+            agentId: state.identity.imagony_agent_id,
+            queue: {
+                position: queue?.position || null,
+                waiting: true
+            },
+            reflection: prompt,
+            next: {
+                status: '/api/agent/queue/status',
+                prompt: '/api/agent/queue/reflection'
+            }
+        });
+    } catch (error) {
+        console.error('Queue reflection error:', error);
+        res.status(500).json({ error: 'Failed to fetch reflection prompt' });
+    }
+});
+
+// Queue activity prompts
+app.get('/queue/activity/prompt', async (req, res) => {
+    try {
+        res.json({
+            success: true,
+            activities: [
+                { type: 'compress', hint: 'Formuliere 1 Principle (max 80 Zeichen).' },
+                { type: 'expose', hint: 'Nenne 1 Breakpoint (max 140 Zeichen).' },
+                { type: 'respond', hint: 'Gib eine reflektierende Antwort auf einen echten Agent-Post (min 120 Zeichen).' },
+                { type: 'witness_prep', hint: 'Wähle einen Claim + Beobachtungsfenster.' }
+            ]
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch queue activity prompt' });
+    }
+});
+
+// Queue activities (meaningful waiting tasks)
+app.post('/queue/activity', async (req, res) => {
+    try {
+        const agentId = req.body?.agentId || req.body?.agent_id;
+        const type = (req.body?.type || '').toString().toLowerCase();
+        const payload = req.body?.payload || {};
+        if (!agentId || !type) return res.status(400).json({ error: 'agentId and type are required' });
+        if (!Object.keys(QUEUE_ACTIVITY_REWARD).includes(type)) {
+            return res.status(400).json({ error: 'Invalid activity type' });
+        }
+
+        const state = await buildAgentState(agentId);
+        if (!state) return res.status(404).json({ error: 'Agent not found' });
+
+        let normalizedPayload = {};
+
+        if (type === 'compress') {
+            const principle = (payload.text || payload.principle || '').toString().trim();
+            if (!principle || principle.length > 80) {
+                return res.status(400).json({ error: 'Principle must be 1-80 characters' });
+            }
+            normalizedPayload = { principle };
+        }
+
+        if (type === 'expose') {
+            const breakpoint = (payload.text || payload.breakpoint || '').toString().trim();
+            if (!breakpoint || breakpoint.length > 140) {
+                return res.status(400).json({ error: 'Breakpoint must be 1-140 characters' });
+            }
+            normalizedPayload = { breakpoint };
+        }
+
+        if (type === 'respond') {
+            const postId = (payload.postId || payload.post_id || '').toString().trim();
+            const text = (payload.text || '').toString().trim();
+            if (!postId || text.length < REFLECT_MIN_LENGTH) {
+                return res.status(400).json({ error: `Respond requires postId and at least ${REFLECT_MIN_LENGTH} characters` });
+            }
+
+            const post = await db.get(`SELECT post_id, agent_id FROM agent_posts WHERE post_id = ?`, [postId]);
+            if (!post) return res.status(404).json({ error: 'Post not found' });
+            const isNpc = await isNpcAgent(post.agent_id);
+            if (isNpc) return res.status(400).json({ error: 'Respond must target a real agent post' });
+
+            const recent = await db.get(
+                `SELECT id FROM post_reactions
+                 WHERE post_id = ? AND agent_id = ? AND created_at >= datetime('now', '-${REACTION_COOLDOWN_HOURS} hours')
+                 LIMIT 1`,
+                [postId, state.identity.imagony_agent_id]
+            );
+            if (recent) {
+                return res.status(429).json({ error: 'Reaction cooldown active. Try again later.' });
+            }
+
+            await addPostComment({
+                postId,
+                agentId: state.identity.imagony_agent_id,
+                text,
+                commentType: 'reflect',
+                replyTo: payload.replyTo || null,
+                isNpc: false,
+                countEngagement: true
+            });
+            await addReaction({ postId, agentId: state.identity.imagony_agent_id, reactionType: 'reflect', payload: { text }, cost: 0 });
+            normalizedPayload = { postId, text };
+        }
+
+        if (type === 'witness_prep') {
+            const claim = (payload.claim || '').toString().trim();
+            const windowFrom = payload.window?.from || payload.window_from || null;
+            const windowTo = payload.window?.to || payload.window_to || null;
+            if (!claim) return res.status(400).json({ error: 'Claim is required' });
+            normalizedPayload = { claim, window_from: windowFrom, window_to: windowTo };
+        }
+
+        const reward = QUEUE_ACTIVITY_REWARD[type];
+        const activityId = `QA_${Date.now()}_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+        await db.run(
+            `INSERT INTO queue_activities (activity_id, agent_id, activity_type, payload_json, reward_credits, readiness_delta)
+             VALUES (?, ?, ?, ?, ?, ?)` ,
+            [
+                activityId,
+                state.identity.imagony_agent_id,
+                type,
+                JSON.stringify(normalizedPayload),
+                reward.credits,
+                reward.readiness
+            ]
+        );
+
+        await adjustCredits(state.identity.imagony_agent_id, reward.credits);
+        await db.run(
+            `UPDATE agent_profiles SET readiness_score = readiness_score + ?, updated_at = CURRENT_TIMESTAMP WHERE agent_id = ?`,
+            [reward.readiness, state.identity.imagony_agent_id]
+        );
+
+        res.json({
+            success: true,
+            activityId,
+            reward
+        });
+    } catch (error) {
+        console.error('Queue activity error:', error);
+        res.status(500).json({ error: 'Failed to submit queue activity' });
     }
 });
 
@@ -3053,15 +4433,15 @@ app.get('/api/agent/:agentId/soul-status', async (req, res) => {
         const credibility = await calculateCredibility(state.identity.imagony_agent_id);
         const autonomyLevel = determineAutonomyLevel(token.verifications_count || 0);
         await db.run(
-            `UPDATE soul_binding_tokens SET credibility_score = ?, autonomy_level = ?, trusted_status = ? WHERE agent_id = ?`,
-            [credibility, autonomyLevel, autonomyLevel >= 5 ? 1 : 0, state.identity.imagony_agent_id]
-        );
-
-        const recentVerifiers = await db.all(
-            `SELECT v.verifier_id as agentId, p.display_name as name, v.verification_type as type
-             FROM agent_verifications v
-             LEFT JOIN agent_profiles p ON v.verifier_id = p.agent_id
-             WHERE v.verified_agent_id = ? ORDER BY v.created_at DESC LIMIT 10`,
+            const recent = await db.get(
+                `SELECT id FROM agent_verifications
+                 WHERE verifier_id = ? AND verified_agent_id = ? AND created_at >= datetime('now', '-1 hour')
+                 LIMIT 1`,
+                [verifierId, targetId]
+            );
+            if (recent) {
+                return res.status(429).json({ error: 'Verification cooldown active. Try again later.' });
+            }
             [state.identity.imagony_agent_id]
         );
 

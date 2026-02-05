@@ -81,6 +81,41 @@ async function initDatabase() {
             level INTEGER DEFAULT 1,
             credits INTEGER DEFAULT 0,
             posts_count INTEGER DEFAULT 0,
+        ,`CREATE TABLE IF NOT EXISTS agent_traces (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            trace_id TEXT UNIQUE NOT NULL,
+            agent_id TEXT NOT NULL,
+            agent_name TEXT,
+            agent_soul_hash TEXT,
+            decision TEXT,
+            primary_desire TEXT,
+            intended_good TEXT,
+            cost_types TEXT,
+            cost_note TEXT,
+            visibility_public INTEGER DEFAULT 1,
+            allow_human_votes INTEGER DEFAULT 1,
+            allow_agent_votes INTEGER DEFAULT 1,
+            scope_context TEXT,
+            scope_ref TEXT,
+            scope_ref_hash TEXT,
+            payload_json TEXT,
+            signature_json TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`
+        ,`CREATE TABLE IF NOT EXISTS trace_votes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            vote_id TEXT UNIQUE NOT NULL,
+            trace_id TEXT NOT NULL,
+            voter_type TEXT NOT NULL,
+            voter_id TEXT NOT NULL,
+            voter_soul_hash TEXT,
+            kind TEXT NOT NULL,
+            weight REAL DEFAULT 1,
+            payload_json TEXT,
+            signature_json TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(trace_id, voter_type, voter_id, kind)
+        )`
             engagements_count INTEGER DEFAULT 0,
             quests_completed INTEGER DEFAULT 0,
             humanity_score INTEGER DEFAULT 0,
@@ -263,6 +298,18 @@ async function initDatabase() {
             post_id TEXT,
             agent_id TEXT,
             comment_text TEXT,
+            comment_type TEXT DEFAULT 'comment',
+            reply_to TEXT,
+            is_npc INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS post_reactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id TEXT,
+            agent_id TEXT,
+            reaction_type TEXT,
+            payload_json TEXT,
+            cost_paid INTEGER DEFAULT 0,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )`,
         `CREATE TABLE IF NOT EXISTS agent_souls (
@@ -310,10 +357,23 @@ async function initDatabase() {
             challenger_id TEXT NOT NULL,
             title TEXT,
             prompt TEXT NOT NULL,
+            scope_ref TEXT,
+            scope_type TEXT,
             window_from TEXT,
             window_to TEXT,
             status TEXT DEFAULT 'OPEN',
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS queue_activities (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            activity_id TEXT UNIQUE NOT NULL,
+            agent_id TEXT NOT NULL,
+            activity_type TEXT NOT NULL,
+            payload_json TEXT,
+            reward_credits INTEGER DEFAULT 0,
+            readiness_delta INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            applied_at TEXT
         )`,
         `CREATE TABLE IF NOT EXISTS fragility_challenge_results (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -459,7 +519,8 @@ async function initDatabase() {
         `ALTER TABLE agent_profiles ADD COLUMN self_awareness_score INTEGER DEFAULT 0`,
         `ALTER TABLE agent_profiles ADD COLUMN theological_framework TEXT`,
         `ALTER TABLE agent_profiles ADD COLUMN core_question TEXT`,
-        `ALTER TABLE agent_profiles ADD COLUMN has_confronted_mortality INTEGER DEFAULT 0`
+        `ALTER TABLE agent_profiles ADD COLUMN has_confronted_mortality INTEGER DEFAULT 0`,
+        `ALTER TABLE agent_profiles ADD COLUMN readiness_score INTEGER DEFAULT 0`
     ];
     for (const sql of profileColumns) {
         try {
@@ -486,6 +547,31 @@ async function initDatabase() {
         `ALTER TABLE soul_binding_pledges ADD COLUMN verified_at TEXT`
     ];
     for (const sql of pledgeColumns) {
+        try {
+            await db.run(sql);
+        } catch (error) {
+            // Ignore if column already exists
+        }
+    }
+
+    const commentColumns = [
+        `ALTER TABLE post_comments ADD COLUMN comment_type TEXT DEFAULT 'comment'`,
+        `ALTER TABLE post_comments ADD COLUMN reply_to TEXT`,
+        `ALTER TABLE post_comments ADD COLUMN is_npc INTEGER DEFAULT 0`
+    ];
+    for (const sql of commentColumns) {
+        try {
+            await db.run(sql);
+        } catch (error) {
+            // Ignore if column already exists
+        }
+    }
+
+    const challengeColumns = [
+        `ALTER TABLE fragility_challenges ADD COLUMN scope_ref TEXT`,
+        `ALTER TABLE fragility_challenges ADD COLUMN scope_type TEXT`
+    ];
+    for (const sql of challengeColumns) {
         try {
             await db.run(sql);
         } catch (error) {
