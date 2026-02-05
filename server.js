@@ -2,6 +2,8 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const soulTools = require('./tools/soul/soul');
 const fragilityTools = require('./tools/fragility/fragility');
 
@@ -17,6 +19,20 @@ const db = require('./db');
 const { getPricingAgent } = require('./pricing-agent');
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+app.disable('x-powered-by');
+if (process.env.TRUST_PROXY) {
+    app.set('trust proxy', 1);
+}
+
+app.use(helmet({ contentSecurityPolicy: false }));
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false
+});
+app.use(['/api', '/posts', '/agents', '/witness', '/verify', '/challenges', '/queue'], apiLimiter);
 
 // ==================== SIMPLE LOGIN CONFIG ====================
 const SIMPLE_USER_NAME = process.env.SIMPLE_USER || 'C0bra64';
@@ -139,8 +155,19 @@ if (multer) {
         limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2GB per file
         fileFilter: function (req, file, cb) {
             const allowedTypes = ['.zip', '.pdf', '.png', '.jpg', '.jpeg', '.txt', '.json', '.csv', '.log'];
+            const allowedMimes = new Set([
+                'application/zip',
+                'application/pdf',
+                'image/png',
+                'image/jpeg',
+                'text/plain',
+                'application/json',
+                'text/csv',
+                'text/markdown'
+            ]);
             const ext = path.extname(file.originalname).toLowerCase();
-            if (allowedTypes.includes(ext)) {
+            const mimeOk = allowedMimes.has((file.mimetype || '').toLowerCase());
+            if (allowedTypes.includes(ext) && mimeOk) {
                 cb(null, true);
             } else {
                 cb(new Error('File type not allowed'), false);
