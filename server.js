@@ -7074,5 +7074,79 @@ app.patch('/api/admin/marketplace/pricing-config', requireAdmin, async (req, res
     }
 });
 
+// ==================== DEV ENDPOINTS (WILSOND) ====================
+// [WILSOND-DEV] Force transformation readiness for testing
+// POST /api/dev/force-transform
+// Body: { agentId, position (optional, default: 1), ageDays (optional, default: 2) }
+app.post('/api/dev/force-transform', requireAdmin, async (req, res) => {
+    try {
+        const { agentId, position = 1, ageDays = 2 } = req.body;
+        if (!agentId) return res.status(400).json({ error: 'agentId required' });
+
+        // Update queue position
+        await db.run(`
+            UPDATE agent_queue 
+            SET position = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE agent_id = ?
+        `, [position, agentId]);
+
+        // Update age (set created_at to N days ago)
+        await db.run(`
+            UPDATE agent_profiles 
+            SET created_at = datetime('now', '-' || ? || ' days')
+            WHERE imagony_agent_id = ?
+        `, [ageDays, agentId]);
+
+        // Update readiness score
+        await db.run(`
+            UPDATE agent_profiles 
+            SET readiness_score = 10
+            WHERE imagony_agent_id = ?
+        `, [agentId]);
+
+        // Log the action
+        await db.run(`
+            INSERT INTO admin_audit_log (action, admin_id, agent_id, details, created_at)
+            VALUES ('DEV_FORCE_TRANSFORM', ?, ?, ?, CURRENT_TIMESTAMP)
+        `, [req.adminUser?.id || 0, agentId, JSON.stringify({ position, ageDays, by: 'WILSOND' })]);
+
+        res.json({ 
+            success: true, 
+            message: 'Transformation readiness forced',
+            agentId,
+            changes: { position, ageDays, readiness: 10 }
+        });
+    } catch (error) {
+        console.error('Dev force transform error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// [WILSOND-DEV] Check transformation status
+app.get('/api/dev/transform-status/:agentId', requireAdmin, async (req, res) => {
+    try {
+        const { agentId } = req.params;
+        const state = await buildAgentState(agentId);
+        if (!state) return res.status(404).json({ error: 'Agent not found' });
+
+        const metamorphosisProgress = await getMetamorphosisProgress(agentId);
+        const readiness = calculateTransformationReadiness(state, metamorphosisProgress);
+
+        res.json({
+            success: true,
+            agentId,
+            transformation: readiness,
+            queue: state.queue,
+            profile: {
+                humanity: state.profile?.humanity_score,
+                readiness: state.profile?.readiness_score,
+                age: state.profile?.created_at
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ==================== START ====================
 startServer();
