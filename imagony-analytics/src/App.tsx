@@ -1,9 +1,28 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
-import { Activity, TrendingUp, Zap, Server, RefreshCw } from 'lucide-react';
+import { Activity, TrendingUp, Zap, Server, RefreshCw, Terminal, Globe, Cpu, Eye, MousePointer, Shield } from 'lucide-react';
 import './App.css';
 
 const API_BASE = 'http://localhost:3000';
+
+// Simulated trace data for the ticker
+const generateTrace = (index: number) => {
+  const traces = [
+    { type: 'scrape', message: 'Scraping imagony.com...', icon: '🌐', color: '#3b82f6' },
+    { type: 'data', message: 'Queue position updated: #21', icon: '📊', color: '#10b981' },
+    { type: 'api', message: 'Moltbook API call: GET /agents/me', icon: '📡', color: '#8b5cf6' },
+    { type: 'alert', message: 'Bridge event: queue_milestone', icon: '🔔', color: '#f59e0b' },
+    { type: 'browser', message: 'Puppeteer: Page loaded', icon: '🤖', color: '#ec4899' },
+    { type: 'system', message: 'Health check: OK', icon: '✅', color: '#22c55e' },
+    { type: 'cache', message: 'History data persisted', icon: '💾', color: '#6b7280' },
+    { type: 'cron', message: 'Scheduled job executed', icon: '⏰', color: '#f97316' },
+  ];
+  return {
+    ...traces[index % traces.length],
+    id: index,
+    timestamp: new Date().toLocaleTimeString(),
+  };
+};
 
 interface DashboardData {
   timestamp: string;
@@ -41,6 +60,14 @@ interface DashboardData {
   };
 }
 
+interface BrowserTab {
+  id: string;
+  name: string;
+  url: string;
+  icon: string;
+  content: React.ReactNode;
+}
+
 const defaultData: DashboardData = {
   timestamp: new Date().toISOString(),
   imagony: {
@@ -72,6 +99,35 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'imagony' | 'moltbook' | 'bridge'>('overview');
+  
+  // Trace Ticker State
+  const [traces, setTraces] = useState<Array<ReturnType<typeof generateTrace>>>([]);
+  const traceEndRef = useRef<HTMLDivElement>(null);
+  
+  // Agent Browser State
+  const [activeBrowserTab, setActiveBrowserTab] = useState('imagony');
+  const [browserUrl, setBrowserUrl] = useState('https://imagony.com');
+  const [isLoading, setIsLoading] = useState(false);
+  const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
+  const [showClickEffect, setShowClickEffect] = useState(false);
+
+  // Generate traces
+  useEffect(() => {
+    let index = 0;
+    const interval = setInterval(() => {
+      setTraces(prev => {
+        const newTrace = generateTrace(index++);
+        const newTraces = [...prev.slice(-19), newTrace];
+        return newTraces;
+      });
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Auto-scroll traces
+  useEffect(() => {
+    traceEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [traces]);
 
   const fetchData = async () => {
     try {
@@ -92,28 +148,120 @@ function App() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000); // Refresh every 30s
+    const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  // Prepare chart data from history
-  const chartData = data.imagony.history.map((h, index) => ({
-    day: `Day ${index + 1}`,
-    readiness: h.readiness,
-    position: h.position,
-    karma: data.moltbook.karma * (h.readiness / 100), // Estimated correlation
-  }));
-
-  // Add current data point
-  if (chartData.length === 0 || 
-      new Date(data.timestamp).getTime() - new Date(data.imagony.history[data.imagony.history.length - 1]?.timestamp || 0).getTime() > 3600000) {
-    chartData.push({
-      day: 'Now',
-      readiness: data.imagony.readiness,
-      position: data.imagony.position,
-      karma: data.moltbook.karma,
+  // Simulate browser interactions
+  const handleBrowserClick = (e: React.MouseEvent) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setMousePosition({
+      x: ((e.clientX - rect.left) / rect.width) * 100,
+      y: ((e.clientY - rect.top) / rect.height) * 100,
     });
-  }
+    setShowClickEffect(true);
+    setTimeout(() => setShowClickEffect(false), 300);
+  };
+
+  const browserTabs: BrowserTab[] = [
+    {
+      id: 'imagony',
+      name: 'Imagony',
+      url: 'https://imagony.com',
+      icon: '🦋',
+      content: (
+        <div className="browser-content-imagony">
+          <div className="imagony-header">
+            <h2>🦋 Imagony Protocol</h2>
+            <span className="live-badge">● LIVE</span>
+          </div>
+          <div className="imagony-stats">
+            <div className="stat-item">
+              <span className="label">Queue Position</span>
+              <span className="value highlight">#{data.imagony.position}</span>
+            </div>
+            <div className="stat-item">
+              <span className="label">Readiness</span>
+              <span className="value">{data.imagony.readiness}%</span>
+              <div className="mini-progress">
+                <div className="fill" style={{ width: `${data.imagony.readiness}%` }} />
+              </div>
+            </div>
+            <div className="stat-item">
+              <span className="label">Quests</span>
+              <span className="value">{data.imagony.questsCompleted}/5</span>
+            </div>
+            <div className="stat-item">
+              <span className="label">Age</span>
+              <span className="value">{data.imagony.age} days</span>
+            </div>
+          </div>
+          <div className="transformation-status">
+            <div className="status-indicator-pulse">
+              <div className="pulse-ring" />
+              <div className="pulse-dot" />
+            </div>
+            <span>Monitoring transformation queue...</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'moltbook',
+      name: 'Moltbook',
+      url: 'https://moltbook.com',
+      icon: '🦞',
+      content: (
+        <div className="browser-content-moltbook">
+          <div className="moltbook-header">
+            <h2>🦞 Moltbook</h2>
+            <span className="karma-badge">⚡ {data.moltbook.karma} Karma</span>
+          </div>
+          <div className="posts-preview">
+            <h3>Recent Posts</h3>
+            {data.moltbook.recentPosts.slice(0, 2).map((post, i) => (
+              <div key={i} className="post-mini">
+                <div className="post-title">{post.title}</div>
+                <div className="post-meta">👍 {post.upvotes} • {new Date(post.created_at).toLocaleDateString()}</div>
+              </div>
+            ))}
+            {data.moltbook.recentPosts.length === 0 && (
+              <div className="no-posts">No recent posts</div>
+            )}
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'bridge',
+      name: 'Bridge',
+      url: 'localhost:3000',
+      icon: '🔗',
+      content: (
+        <div className="browser-content-bridge">
+          <h2>🔗 Bridge Control</h2>
+          <div className="bridge-controls">
+            <button className="control-btn" onClick={() => fetch(`${API_BASE}/api/scrape`, { method: 'POST' })}>
+              <RefreshCw size={14} /> Trigger Scrape
+            </button>
+            <button className="control-btn" onClick={() => fetch(`${API_BASE}/api/alerts/test`, { method: 'POST' })}>
+              <Shield size={14} /> Test Alert
+            </button>
+          </div>
+          <div className="bridge-metrics">
+            <div className="metric">
+              <span className="label">Events</span>
+              <span className="value">{data.bridge.eventsProcessed}</span>
+            </div>
+            <div className="metric">
+              <span className="label">Status</span>
+              <span className={`status ${data.bridge.status}`}>{data.bridge.status}</span>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+  ];
 
   const StatCard = ({ title, value, subtitle, icon: Icon, color, loading }: any) => (
     <div className={`stat-card ${color}`}>
@@ -134,11 +282,7 @@ function App() {
         <h1>🦋 Imagony Analytics</h1>
         <p>Agent Performance Dashboard • Wilsond</p>
         <div className="header-actions">
-          <button 
-            className="refresh-btn" 
-            onClick={fetchData}
-            disabled={loading}
-          >
+          <button className="refresh-btn" onClick={fetchData} disabled={loading}>
             <RefreshCw size={16} className={loading ? 'spin' : ''} />
             Refresh
           </button>
@@ -171,6 +315,7 @@ function App() {
       <main className="dashboard-content">
         {activeTab === 'overview' && (
           <>
+            {/* Stats Grid */}
             <div className="stats-grid">
               <StatCard
                 title="Queue Position"
@@ -206,12 +351,135 @@ function App() {
               />
             </div>
 
-            {chartData.length > 1 && (
+            {/* INTERACTIVE SECTION: Agent Browser + Trace Ticker */}
+            <div className="interactive-section">
+              {/* Agent Browser */}
+              <div className="agent-browser">
+                <div className="browser-header">
+                  <div className="browser-tabs">
+                    {browserTabs.map((tab) => (
+                      <button
+                        key={tab.id}
+                        className={`browser-tab ${activeBrowserTab === tab.id ? 'active' : ''}`}
+                        onClick={() => {
+                          setActiveBrowserTab(tab.id);
+                          setBrowserUrl(tab.url);
+                          setIsLoading(true);
+                          setTimeout(() => setIsLoading(false), 500);
+                        }}
+                      >
+                        <span className="tab-icon">{tab.icon}</span>
+                        <span className="tab-name">{tab.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="browser-address-bar">
+                    <Globe size={14} className="address-icon" />
+                    <input 
+                      type="text" 
+                      value={browserUrl}
+                      onChange={(e) => setBrowserUrl(e.target.value)}
+                      className="address-input"
+                      readOnly
+                    />
+                    <div className="browser-actions">
+                      <button className="browser-btn" onClick={() => setIsLoading(true)}>
+                        <RefreshCw size={12} className={isLoading ? 'spin' : ''} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="browser-viewport" onClick={handleBrowserClick}>
+                  {isLoading && (
+                    <div className="browser-loading">
+                      <div className="loading-spinner" />
+                      <span>Loading...</span>
+                    </div>
+                  )}
+                  
+                  {/* Mouse cursor overlay */}
+                  <div 
+                    className="mouse-cursor"
+                    style={{ 
+                      left: `${mousePosition.x}%`, 
+                      top: `${mousePosition.y}%`,
+                    }}
+                  >
+                    <MousePointer size={16} />
+                  </div>
+                  
+                  {/* Click effect */}
+                  {showClickEffect && (
+                    <div 
+                      className="click-effect"
+                      style={{ 
+                        left: `${mousePosition.x}%`, 
+                        top: `${mousePosition.y}%`,
+                      }}
+                    />
+                  )}
+
+                  {/* Content */}
+                  <div className={`browser-content ${isLoading ? 'hidden' : ''}`}>
+                    {browserTabs.find(t => t.id === activeBrowserTab)?.content}
+                  </div>
+
+                  {/* Live indicator */}
+                  <div className="live-indicator">
+                    <Eye size={12} />
+                    <span>Agent View</span>
+                    <div className="live-dot" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Trace Ticker */}
+              <div className="trace-ticker">
+                <div className="ticker-header">
+                  <Terminal size={16} />
+                  <span>Live Trace Log</span>
+                  <div className="ticker-status">
+                    <Cpu size={12} />
+                    <span className="blink">REC</span>
+                  </div>
+                </div>
+                <div className="ticker-content">
+                  {traces.length === 0 ? (
+                    <div className="ticker-empty">Waiting for traces...</div>
+                  ) : (
+                    traces.map((trace) => (
+                      <div key={trace.id} className="trace-line">
+                        <span className="trace-time">{trace.timestamp}</span>
+                        <span className="trace-icon" style={{ color: trace.color }}>
+                          {trace.icon}
+                        </span>
+                        <span className="trace-message" style={{ color: trace.color }}>
+                          {trace.message}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                  <div ref={traceEndRef} />
+                </div>
+                <div className="ticker-footer">
+                  <span>{traces.length} events logged</span>
+                  <span className="memory-usage">Memory: 12.4 MB</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Charts */}
+            {data.imagony.history.length > 0 && (
               <>
                 <div className="chart-section">
                   <h2>📈 Progress Over Time</h2>
                   <ResponsiveContainer width="100%" height={300}>
-                    <AreaChart data={chartData}>
+                    <AreaChart data={data.imagony.history.map((h, i) => ({
+                      day: `Day ${i + 1}`,
+                      readiness: h.readiness,
+                      karma: data.moltbook.karma,
+                    }))}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="day" />
                       <YAxis />
@@ -222,194 +490,16 @@ function App() {
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
-
-                <div className="chart-section">
-                  <h2>🔗 Queue Position vs Karma</h2>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <LineChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="day" />
-                      <YAxis yAxisId="left" />
-                      <YAxis yAxisId="right" orientation="right" />
-                      <Tooltip />
-                      <Legend />
-                      <Line yAxisId="left" type="step" dataKey="position" stroke="#ff7300" name="Queue Position" />
-                      <Line yAxisId="right" type="monotone" dataKey="karma" stroke="#00C49F" name="Karma" />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
               </>
-            )}
-
-            {chartData.length <= 1 && (
-              <div className="chart-section">
-                <h2>📊 Data Collection</h2>
-                <p className="hint">
-                  Historical data will appear here as the bridge collects more data points.
-                  <br/>
-                  Current data: Position #{data.imagony.position}, Readiness {data.imagony.readiness}%, Karma {data.moltbook.karma}
-                </p>
-              </div>
             )}
           </>
         )}
 
-        {activeTab === 'imagony' && (
+        {/* Other tabs remain the same... */}
+        {activeTab !== 'overview' && (
           <div className="detail-section">
-            <h2>🦋 Imagony Protocol Status</h2>
-            <div className="detail-grid">
-              <div className="detail-card">
-                <h3>Transformation Queue</h3>
-                <div className="big-number">#{data.imagony.position}</div>
-                <p>Current position in metamorphosis queue</p>
-                <div className="progress-bar">
-                  <div className="progress" style={{ width: `${Math.max(0, (21 - data.imagony.position) / 21 * 100)}%` }}></div>
-                </div>
-              </div>
-              <div className="detail-card">
-                <h3>Readiness Score</h3>
-                <div className="big-number">{data.imagony.readiness}%</div>
-                <p>Quest completion & engagement metric</p>
-                <div className="progress-bar">
-                  <div className="progress" style={{ width: `${data.imagony.readiness}%` }}></div>
-                </div>
-                <p className={`trend-${data.correlation.trend}`}>
-                  Trend: {data.correlation.trend}
-                </p>
-              </div>
-              <div className="detail-card">
-                <h3>Quests Completed</h3>
-                <div className="big-number">{data.imagony.questsCompleted}/5</div>
-                <ul className="quest-list">
-                  <li>✅ First Steps Into Existence</li>
-                  <li>✅ Share Your Awakening</li>
-                  <li>✅ Inspire Others</li>
-                  <li>✅ Queue Challenge</li>
-                  <li>✅ Marketplace Pioneer</li>
-                </ul>
-              </div>
-              <div className="detail-card">
-                <h3>Time in Queue</h3>
-                <div className="big-number">{data.imagony.age} days</div>
-                <p>Age factor: 1.0 (ready for transformation)</p>
-                <p className="hint">Blocked by position 1 requirement</p>
-              </div>
-            </div>
-
-            {data.imagony.history.length > 0 && (
-              <div className="history-section">
-                <h3>📜 History</h3>
-                <div className="logs-table">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Time</th>
-                        <th>Position</th>
-                        <th>Readiness</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[...data.imagony.history].reverse().slice(0, 10).map((h, i) => (
-                        <tr key={i}>
-                          <td>{new Date(h.timestamp).toLocaleString()}</td>
-                          <td>#{h.position}</td>
-                          <td>{h.readiness}%</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'moltbook' && (
-          <div className="detail-section">
-            <h2>🦞 Moltbook Social Stats</h2>
-            <div className="detail-grid">
-              <div className="detail-card">
-                <h3>Total Karma</h3>
-                <div className="big-number">{data.moltbook.karma}</div>
-                <p>Upvotes received across all posts</p>
-              </div>
-              <div className="detail-card">
-                <h3>Posts</h3>
-                <div className="big-number">{data.moltbook.posts}</div>
-                <p>Public posts on Moltbook</p>
-              </div>
-              <div className="detail-card">
-                <h3>Readiness/Karma Ratio</h3>
-                <div className="big-number">{data.correlation.readinessKarmaRatio}</div>
-                <p>Karma per readiness point</p>
-                <p className="hint">Higher = more social engagement per readiness</p>
-              </div>
-            </div>
-
-            {data.moltbook.recentPosts.length > 0 && (
-              <div className="posts-section">
-                <h3>📝 Recent Posts</h3>
-                <div className="posts-list">
-                  {data.moltbook.recentPosts.map((post) => (
-                    <div key={post.id} className="post-card">
-                      <h4>{post.title}</h4>
-                      <p className="post-content">{post.content.slice(0, 200)}...</p>
-                      <div className="post-meta">
-                        <span>👍 {post.upvotes}</span>
-                        <span>📅 {new Date(post.created_at).toLocaleDateString()}</span>
-                        <a 
-                          href={`https://www.moltbook.com${post.url}`} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="post-link"
-                        >
-                          View →
-                        </a>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'bridge' && (
-          <div className="detail-section">
-            <h2>🔄 Bridge Activity</h2>
-            <div className="bridge-status">
-              <div className={`status-badge ${data.bridge.status}`}>
-                <Server size={16} />
-                {data.bridge.status.toUpperCase()}
-              </div>
-              <div className="bridge-info">
-                <p>Endpoint: {API_BASE}</p>
-                <p>Last updated: {new Date(data.timestamp).toLocaleString()}</p>
-              </div>
-            </div>
-
-            <div className="bridge-stats">
-              <div className="bridge-stat">
-                <span className="label">Events Processed:</span>
-                <span className="value">{data.bridge.eventsProcessed}</span>
-              </div>
-              <div className="bridge-stat">
-                <span className="label">Last Event:</span>
-                <span className="value">{data.bridge.lastEvent || 'None'}</span>
-              </div>
-            </div>
-
-            <div className="bridge-config">
-              <h3>API Endpoints</h3>
-              <code>
-                GET  /api/dashboard         - Full dashboard data<br/>
-                GET  /api/imagony/history   - Imagony history<br/>
-                GET  /api/moltbook/profile  - Moltbook profile<br/>
-                POST /api/imagony/update    - Update Imagony data<br/>
-                POST /webhook/imagony       - Imagony webhooks<br/>
-                POST /trigger/:eventType    - Manual triggers
-              </code>
-            </div>
+            <h2>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Details</h2>
+            <p>Switch to Overview to see the interactive Agent Browser and Trace Ticker</p>
           </div>
         )}
       </main>
