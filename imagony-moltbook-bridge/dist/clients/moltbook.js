@@ -26,6 +26,10 @@ class MoltbookClient {
         const data = await this.request('/agents/me');
         return data.agent;
     }
+    async getMyPosts() {
+        const data = await this.request('/agents/me/posts');
+        return data.posts;
+    }
     async createPost(submolt, title, content) {
         const data = await this.request('/posts', {
             method: 'POST',

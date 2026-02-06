@@ -34,6 +34,11 @@ export class MoltbookClient {
     return data.agent;
   }
 
+  async getMyPosts(): Promise<Post[]> {
+    const data = await this.request<{ posts: Post[] }>('/agents/me/posts');
+    return data.posts;
+  }
+
   async createPost(submolt: string, title: string, content: string): Promise<Post> {
     const data = await this.request<{ post: Post }>('/posts', {
       method: 'POST',
