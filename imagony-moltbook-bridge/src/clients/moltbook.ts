@@ -1,4 +1,4 @@
-import { Agent, Post, Submolt } from './types';
+import { Agent, Post, Submolt, Comment } from '../types';
 
 export class MoltbookClient {
   private apiKey: string;
@@ -26,7 +26,7 @@ export class MoltbookClient {
       throw new Error(`Moltbook API error: ${response.status} ${error}`);
     }
 
-    return response.json();
+    return response.json() as Promise<T>;
   }
 
   async getAgentProfile(): Promise<Agent> {
