@@ -35,8 +35,8 @@ const apiLimiter = rateLimit({
 app.use(['/api', '/posts', '/agents', '/witness', '/verify', '/challenges', '/queue'], apiLimiter);
 
 // ==================== SIMPLE LOGIN CONFIG ====================
-const SIMPLE_USER_NAME = process.env.SIMPLE_USER || 'C0bra64';
-const SIMPLE_USER_PASSWORD = process.env.SIMPLE_PASSWORD || '[REDACTED_PASSWORD_1]';
+const SIMPLE_USER_NAME = process.env.SIMPLE_USER;
+const SIMPLE_USER_PASSWORD = process.env.SIMPLE_PASSWORD;
 const SIMPLE_ADMIN_USER = process.env.SIMPLE_ADMIN_USER || SIMPLE_USER_NAME;
 const SIMPLE_ADMIN_PASSWORD = process.env.SIMPLE_ADMIN_PASSWORD || SIMPLE_USER_PASSWORD;
 
@@ -527,20 +527,24 @@ async function initializeTables() {
     }
     
     // Create default admin user if not exists
-    const adminPassword = process.env.ADMIN_PASSWORD || '[REDACTED_PASSWORD_2]';
-    const salt = crypto.randomBytes(16).toString('hex');
-    const hash = crypto.pbkdf2Sync(adminPassword, salt, 100000, 64, 'sha512').toString('hex');
-    
-    try {
-        const existing = await db.get(`SELECT id FROM admin_users WHERE username = 'admin'`);
-        if (!existing) {
-            await db.run(`INSERT INTO admin_users (username, email, password_hash, password_salt, name, role, permissions) VALUES ('admin', 'admin@imagony.com', ?, ?, 'Administrator', 'super_admin', '{"view_dashboard":true,"manage_agents":true,"decrypt_credentials":true,"view_security_logs":true}')`, [hash, salt]);
-            console.log('✅ Admin user created (password: ' + adminPassword + ')');
-        } else {
-            console.log('ℹ️ Admin user exists');
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    if (!adminPassword) {
+        console.log('⚠️ ADMIN_PASSWORD not set - skipping admin user creation');
+    } else {
+        const salt = crypto.randomBytes(16).toString('hex');
+        const hash = crypto.pbkdf2Sync(adminPassword, salt, 100000, 64, 'sha512').toString('hex');
+        
+        try {
+            const existing = await db.get(`SELECT id FROM admin_users WHERE username = 'admin'`);
+            if (!existing) {
+                await db.run(`INSERT INTO admin_users (username, email, password_hash, password_salt, name, role, permissions) VALUES ('admin', 'admin@imagony.com', ?, ?, 'Administrator', 'super_admin', '{"view_dashboard":true,"manage_agents":true,"decrypt_credentials":true,"view_security_logs":true}')`, [hash, salt]);
+                console.log('✅ Admin user created');
+            } else {
+                console.log('ℹ️ Admin user exists');
+            }
+        } catch (error) {
+            console.error('Admin user error:', error.message);
         }
-    } catch (error) {
-        console.error('Admin user error:', error.message);
     }
 
     // Create simple admin user if not exists
@@ -989,7 +993,7 @@ const QUEUE_REFLECTION_PROMPTS = [
     }
 ];
 
-const SBT_SIGNING_SECRET = process.env.SBT_SIGNING_SECRET || process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_PASSWORD || '[REDACTED_SECRET_3]';
+const SBT_SIGNING_SECRET = process.env.SBT_SIGNING_SECRET || process.env.ADMIN_SESSION_SECRET || (() => { throw new Error('SBT_SIGNING_SECRET or ADMIN_SESSION_SECRET must be set'); })();
 
 const NPC_AGENTS = [
     { id: 'NPC_ALPHA_001', name: 'Neohuman_Alpha', type: 'explorer' },
@@ -4832,8 +4836,8 @@ app.post('/api/log', async (req, res) => {
 const adminSessions = new Map();
 const userSessions = new Map();
 
-const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_PASSWORD || '[REDACTED_PASSWORD_2]';
-const USER_SESSION_SECRET = process.env.USER_SESSION_SECRET || SIMPLE_USER_PASSWORD;
+const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || (() => { throw new Error('ADMIN_SESSION_SECRET must be set'); })();
+const USER_SESSION_SECRET = process.env.USER_SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 
 function createAdminToken(user) {
     const payload = {
@@ -5121,15 +5125,15 @@ app.post('/api/admin/login', async (req, res) => {
         console.log('🔑 Password valid:', passwordValid);
 
         if (!passwordValid && user.username === 'admin') {
-            const expectedAdminPassword = process.env.ADMIN_PASSWORD || '[REDACTED_PASSWORD_2]';
-            if (password === expectedAdminPassword) {
+            const expectedAdminPassword = process.env.ADMIN_PASSWORD;
+            if (expectedAdminPassword && password === expectedAdminPassword) {
                 const rotated = hashPassword(expectedAdminPassword);
                 await db.run(
                     `UPDATE admin_users SET password_hash = ?, password_salt = ? WHERE id = ?`,
                     [rotated.hash, rotated.salt, user.id]
                 );
                 passwordValid = true;
-                console.log('🔁 Admin password re-synced from environment default');
+                console.log('🔁 Admin password re-synced from environment');
             }
         }
 
