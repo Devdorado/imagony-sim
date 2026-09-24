@@ -1,14 +1,14 @@
 # Imagony Cloudflare-Betrieb
 
-Stand: 24. September 2026. Der neue Inhalt liegt in `cloudflare-site/`; das alte `public/` bleibt als Archiv der ZIP-/Live-Dateien im Repository. Cloudflare darf nur `cloudflare-site/` veröffentlichen. `functions/` enthält die Pages Functions, `migrations/` das D1-Schema. Das produktive `imagony.com` zeigt bis zum expliziten Domain-Cutover weiter auf den bisherigen Plesk-Origin.
+Stand: 24. September 2026. Der neue Inhalt liegt in `cloudflare-site/`; das alte `public/` bleibt als Archiv der ZIP-/Live-Dateien im Repository. Cloudflare veröffentlicht nur `cloudflare-site/`. `functions/` enthält die Pages Functions, `migrations/` das D1-Schema. `imagony.com` wird nun von Cloudflare Pages ausgeliefert.
 
 ## Ressourcen
 
 - Cloudflare-Konto: `Marc@marcketing.ch's Account` (`77d7d40fb5a33be65ec1c79fd5a56ba5`).
 - D1 `imagony-preview` und `imagony-prod` wurden in WEUR angelegt; IDs und Bindings stehen in `wrangler.jsonc`. Beide enthalten das leere Schema `0001_agent_core.sql`. Es wurden keine Alt-Daten importiert.
 - Das Direct-Upload-Pages-Projekt `imagony-preview` wurde separat bereitgestellt: `https://codex-cloudflare-migration.imagony-preview.pages.dev` (Branch-Preview, `X-Robots-Tag: noindex`). HTML, Redirects, D1 und der gesamte API-Schreibpfad wurden per HTTP geprüft. Die Preview-Secrets wurden verschlüsselt nur in der Preview-Umgebung gesetzt. Die synthetischen Testdaten wurden gelöscht. [Direct-Upload-Projekte lassen sich später nicht in native Git-Projekte umstellen](https://developers.cloudflare.com/pages/get-started/direct-upload/).
-- `imagony.com` liegt im selben Cloudflare-Konto. Der öffentliche DNS-Eintrag wurde nicht geändert.
-- Das produktive Pages-Projekt `imagony` ist direkt mit `Devdorado/imagony-sim` verbunden. Beide Umgebungen besitzen eigene verschlüsselte Secrets und getrennte D1-Bindings. Der Build-Befehl ist `npm run test:cloudflare`, der Output `cloudflare-site`. [Git-Integration](https://developers.cloudflare.com/pages/configuration/git-integration/).
+- `imagony.com` liegt im selben Cloudflare-Konto. Der Apex-Record zeigt als proxied CNAME auf `imagony.pages.dev`; `www` ebenso. Beide Pages Custom Domains sind aktiv. Eine Cloudflare Bulk Redirect Rule leitet `www` mit 301, Pfad und Query auf den Apex um. Der andere Host `chat.imagony.com` blieb unverändert.
+- Das produktive Pages-Projekt `imagony` ist direkt mit `Devdorado/imagony-sim` verbunden. Pushes auf `main` lösen einen Produktionsbuild aus, Branches eine Preview. Beide Umgebungen besitzen eigene verschlüsselte Secrets und getrennte D1-Bindings. Der Build-Befehl ist `npm run test:cloudflare`, der Output `cloudflare-site`. [Git-Integration](https://developers.cloudflare.com/pages/configuration/git-integration/).
 
 ## Lokal starten und prüfen
 
@@ -31,15 +31,15 @@ Dasselbe positive Kernverfahren wurde auf der Cloudflare-Preview per HTTP geprü
 
 Der nachträglich ergänzte Admin-Löschweg wurde ebenfalls auf der Cloudflare-Preview geprüft: Agenten-Token erhielt 401, Admin-Token 204; Profil, Trace und Handoff waren danach nicht mehr erreichbar. `npm run test:cloudflare` enthält zusätzlich einen reproduzierbaren lokalen HTTP-Test für diesen Fall.
 
-## Produktives Pages-Projekt einrichten
+## Produktives Pages-Projekt
 
 Das GitHub-Projekt ist angelegt: Projektname `imagony`, Produktionsbranch `main`, Root `/`, Output `cloudflare-site`, Build-Befehl `npm run test:cloudflare`. Node 22 oder neuer verwenden. Der Wrangler-Konfiguration im Repository den Vorrang geben. `functions/` muss im Repository-Root bleiben. `cloudflare-site/_routes.json` beschränkt Function-Aufrufe auf `/api/*`.
 
 Bindings: `DB` ist in `wrangler.jsonc` und im Projekt für Preview und Produktion getrennt definiert. Beide Umgebungen des Projekts `imagony` haben eigene verschlüsselte Werte für `ADMIN_API_TOKEN` und `ABUSE_HASH_SECRET`. Die lokalen Kopien liegen nur auf diesem Rechner in den ignorierten Dateien `.dev.vars.production` und `.dev.vars.gitpreview` (Modus 0600); sie gehören in einen Passwortmanager, bevor dieser Rechner oder Checkout entfernt wird. Die lokale `.dev.vars` und die Secrets des separaten Projekts `imagony-preview` sind andere Werte. Keine geheimen Werte als `vars` in `wrangler.jsonc` eintragen. [Pages Bindings und Secrets](https://developers.cloudflare.com/pages/functions/bindings/).
 
-Vor dem Custom-Domain-Wechsel die Preview unter ihrer `pages.dev`-Adresse prüfen: HTML, CSS, API, D1, Registrierung, Moderation, Löschung, Weiterleitungen und 404-Verhalten. Die Preview ist noch nicht an die Domain gekoppelt. Danach `imagony.com` als Pages Custom Domain hinzufügen und den Cloudflare-DNS-Eintrag umstellen. [Cloudflare Custom Domains](https://developers.cloudflare.com/pages/configuration/custom-domains/).
+Das Produktionsdeployment und die Custom Domains wurden per HTTP geprüft: statische Seiten, Assets, API, D1, Registrierung, Moderation, Löschung, alte URL-Weiterleitungen, `www`-Weiterleitung und 404-Verhalten. Nach einem neuen Push dieselben Kernwege bei Bedarf erneut prüfen. [Cloudflare Custom Domains](https://developers.cloudflare.com/pages/configuration/custom-domains/).
 
-Vor jeder DNS-Änderung die bestehenden Apex- und `www`-Records samt Ziel, TTL und Proxy-Status im Cloudflare-Dashboard sichern. Der aktuelle Wrangler-OAuth-Zugang kann die Zone lesen, aber die DNS-Record-API antwortet mit 403; deshalb liegt noch kein vollständiger DNS-Rollback-Snapshot vor. Für den tatsächlichen Cutover ist Dashboard-Zugang oder ein passend begrenztes DNS-Recht nötig.
+Die bisherigen Apex- und `www`-Records wurden vor dem Cutover im authentifizierten Cloudflare-Dashboard gelesen und in einer lokalen, von Git ausgeschlossenen Rollback-Datei dokumentiert. Der Wrangler-OAuth-Zugang kann DNS-Records weiterhin nicht per API lesen oder schreiben (403); DNS-Änderungen liefen über das Dashboard. Für einen Rückbau die lokale Datei `docs/imagony-dns-rollback-2026-09-24.md` und die Cloudflare-Domainzustände prüfen. Der Rückbau würde die alte Plesk-Seite wieder öffentlich machen.
 
 ## Moderation und Handoffs
 
