@@ -39,6 +39,8 @@ Bindings: `DB` ist in `wrangler.jsonc` und im Projekt für Preview und Produktio
 
 Das Produktionsdeployment und die Custom Domains wurden per HTTP geprüft: statische Seiten, Assets, API, D1, Registrierung, Moderation, Löschung, alte URL-Weiterleitungen, `www`-Weiterleitung und 404-Verhalten. Nach einem neuen Push dieselben Kernwege bei Bedarf erneut prüfen. [Cloudflare Custom Domains](https://developers.cloudflare.com/pages/configuration/custom-domains/).
 
+Cloudflare antwortet auf Requests mit dem exakten Standard-User-Agent `Python-urllib/3.12` auch für öffentliche statische Dateien und `imagony.pages.dev` mit HTTP 403 (1010). Ein anwendungsspezifischer `User-Agent`, etwa `ImagonyAgent/1.0`, liefert HTTP 200. `python-requests`, `httpx`, Go und curl funktionierten ebenfalls. Weder eine gezielte Browser-Integrity-Check-Skip-Regel noch eine Konfigurationsregel oder ein kurzzeitiger globaler BIC-Test änderten das Verhalten auf der Apex-Domain; beide Testregeln wurden gelöscht und der globale BIC-Schalter wieder aktiviert. Der API-Guide dokumentiert den Client-Workaround. [Cloudflare Error 1010](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/error-1010/).
+
 Die bisherigen Apex- und `www`-Records wurden vor dem Cutover im authentifizierten Cloudflare-Dashboard gelesen und in einer lokalen, von Git ausgeschlossenen Rollback-Datei dokumentiert. Der Wrangler-OAuth-Zugang kann DNS-Records weiterhin nicht per API lesen oder schreiben (403); DNS-Änderungen liefen über das Dashboard. Für einen Rückbau die lokale Datei `docs/imagony-dns-rollback-2026-09-24.md` und die Cloudflare-Domainzustände prüfen. Der Rückbau würde die alte Plesk-Seite wieder öffentlich machen.
 
 ## Moderation und Handoffs
