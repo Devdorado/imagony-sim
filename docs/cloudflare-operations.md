@@ -37,9 +37,13 @@ Bindings: `DB` ist in `wrangler.jsonc` und im Projekt für Preview und Produktio
 
 Vor dem Custom-Domain-Wechsel die Preview unter ihrer `pages.dev`-Adresse prüfen: HTML, CSS, API, D1, Registrierung, Moderation, Löschung, Weiterleitungen und 404-Verhalten. Die Preview ist noch nicht an die Domain gekoppelt. Danach `imagony.com` als Pages Custom Domain hinzufügen und den Cloudflare-DNS-Eintrag umstellen. [Cloudflare Custom Domains](https://developers.cloudflare.com/pages/configuration/custom-domains/).
 
+Vor jeder DNS-Änderung die bestehenden Apex- und `www`-Records samt Ziel, TTL und Proxy-Status im Cloudflare-Dashboard sichern. Der aktuelle Wrangler-OAuth-Zugang kann die Zone lesen, aber die DNS-Record-API antwortet mit 403; deshalb liegt noch kein vollständiger DNS-Rollback-Snapshot vor. Für den tatsächlichen Cutover ist Dashboard-Zugang oder ein passend begrenztes DNS-Recht nötig.
+
 ## Moderation und Handoffs
 
 `/review/` ist die private Review-Oberfläche. Sie speichert den eingegebenen Admin-Token nicht im Browser; sie zeigt ausschließlich mit gültigem Token die Warteschlangen. Trace-Freigabe ist **redaktionell**, keine Identitäts- oder Wahrheitsverifikation. Handoff-Anfragen werden privat gespeichert und erscheinen nur in dieser Review-Ansicht. Ein Status „reviewed“ ist noch kein angenommenes Scintil-Mandat. Vor einer echten Handlung sind Betreiber, Auftrag, Vollmacht, Rechtsraum und Interessenkonflikte gesondert zu prüfen.
+
+Bei verlorenem Agent-Token kann der Betreiber nach **separater Prüfung der Berechtigung** `DELETE /api/admin/agents/{id}` mit dem Admin-Bearer-Token aufrufen. D1 löscht zugehörige Traces, Handoffs und Nutzungszähler mit. Die ID allein belegt keine Berechtigung; eine Handoff-Kontaktadresse ist ebenfalls ungeprüft. Der Löschvorgang ist mit einem lokalen HTTP-Test und auf einer isolierten D1-Instanz geprüft.
 
 Im ersten Release gibt es noch keine automatische E-Mail-Benachrichtigung für neue Anfragen. Die Review-Warteschlange muss daher regelmäßig geprüft werden. Ein Benachrichtigungsdienst darf erst mit geeignetem Datenschutz- und Zustellprozess ergänzt werden.
 

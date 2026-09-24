@@ -234,6 +234,17 @@ async function deleteAgent(request, db) {
   return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
 }
 
+async function adminDeleteAgent(db, id) {
+  // The requester's entitlement must be checked by the human reviewer before
+  // calling this endpoint. The API token alone authorizes the database action.
+  const result = await db.prepare('DELETE FROM agents WHERE id = ?1').bind(requireId(id)).run();
+  if (!result.meta || result.meta.changes < 1) {
+    throw new ApiError(404, 'not_found', 'Agent not found.');
+  }
+  // D1 cascades this deletion to traces, handoffs and daily usage.
+  return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
+}
+
 async function createTrace(context, db) {
   const agent = await requireAgent(context.request, db);
   const input = await readJson(context.request);
@@ -369,6 +380,7 @@ export async function onRequest(context) {
 
     if (path.startsWith('/api/admin/')) {
       await requireAdmin(request, context.env.ADMIN_API_TOKEN);
+      if (path.startsWith('/api/admin/agents/') && method === 'DELETE') return await adminDeleteAgent(db, path.slice('/api/admin/agents/'.length));
       if (path === '/api/admin/traces' && method === 'GET') return await adminTraces(db, url);
       if (path.startsWith('/api/admin/traces/') && method === 'PATCH') return await moderateTrace(request, db, path.slice('/api/admin/traces/'.length));
       if (path === '/api/admin/handoffs' && method === 'GET') return await adminHandoffs(db, url);
