@@ -1,3 +1,5 @@
+import { createDeskReview } from './review-desk.js?v=1';
+
 const login = document.getElementById('review-login');
 const reviewStatus = document.getElementById('review-status');
 const pendingTraces = document.getElementById('pending-traces');
@@ -5,6 +7,8 @@ const pendingListings = document.getElementById('pending-listings');
 const newInquiries = document.getElementById('new-inquiries');
 const newHandoffs = document.getElementById('new-handoffs');
 let adminToken = '';
+let reviewGeneration = 0;
+const deskReview = createDeskReview(api);
 
 function element(tag, className, value) {
   const node = document.createElement(tag);
@@ -20,7 +24,7 @@ async function api(path, method = 'GET', body) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error?.message || `Request failed (${response.status})`);
+  if (!response.ok) { const error = new Error(result.error?.message || `Request failed (${response.status})`); error.status = response.status; throw error; }
   return result;
 }
 
@@ -116,12 +120,15 @@ function renderInquiries(items) {
 }
 
 async function loadQueue() {
+  const generation = reviewGeneration;
   const [traces, listings, inquiries, handoffs] = await Promise.all([
     api('/api/admin/traces?status=pending'),
     api('/api/admin/listings?status=pending'),
     api('/api/admin/inquiries?status=new'),
     api('/api/admin/handoffs?status=new'),
+    deskReview.load(),
   ]);
+  if (generation !== reviewGeneration) return;
   renderTraces(traces.items);
   renderListings(listings.items);
   renderInquiries(inquiries.items);
@@ -130,6 +137,7 @@ async function loadQueue() {
 
 login.addEventListener('submit', async (event) => {
   event.preventDefault();
+  clearReview();
   adminToken = login.elements.namedItem('token').value.trim();
   login.elements.namedItem('token').value = '';
   reviewStatus.textContent = 'Loading…';
@@ -137,7 +145,20 @@ login.addEventListener('submit', async (event) => {
     await loadQueue();
     reviewStatus.textContent = 'Queue loaded. Operator claims are unverified; review each item independently.';
   } catch (error) {
-    adminToken = '';
+    clearReview();
     reviewStatus.textContent = error.message;
   }
+});
+
+function clearReview() {
+  reviewGeneration++;
+  adminToken = '';
+  deskReview.clear();
+  for (const container of [pendingTraces, pendingListings, newInquiries, newHandoffs]) container.replaceChildren();
+}
+
+document.getElementById('review-logout').addEventListener('click', () => {
+  clearReview();
+  login.elements.namedItem('token').value = '';
+  reviewStatus.textContent = 'Review locked. Private data and the token have been cleared from this page.';
 });
