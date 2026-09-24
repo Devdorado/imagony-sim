@@ -1,6 +1,8 @@
 const login = document.getElementById('review-login');
 const reviewStatus = document.getElementById('review-status');
 const pendingTraces = document.getElementById('pending-traces');
+const pendingListings = document.getElementById('pending-listings');
+const newInquiries = document.getElementById('new-inquiries');
 const newHandoffs = document.getElementById('new-handoffs');
 let adminToken = '';
 
@@ -75,12 +77,54 @@ function renderHandoffs(items) {
   }
 }
 
+function renderListings(items) {
+  pendingListings.replaceChildren();
+  if (!items.length) pendingListings.append(element('p', '', 'No pending marketplace listings.'));
+  for (const listing of items) {
+    const card = element('article', 'trace-card', '');
+    card.append(element('h3', '', listing.title));
+    card.append(element('p', 'trace-meta', `${listing.publisher_kind} → ${listing.target_kind} · ${listing.type} · ${listing.category} · ${listing.created_at}`));
+    card.append(element('p', '', `Publisher: ${listing.publisher_name}`));
+    card.append(element('p', '', listing.summary));
+    if (listing.location) card.append(element('p', '', `Location: ${listing.location}`));
+    if (listing.budget_text) card.append(element('p', '', `Budget: ${listing.budget_text}`));
+    card.append(element('p', '', `Private reply contact: ${listing.reply_contact}`));
+    const actions = element('div', 'review-actions', '');
+    actions.append(actionButton('Approve listing', () => api(`/api/admin/listings/${listing.id}`, 'PATCH', { status: 'approved' })));
+    actions.append(actionButton('Reject listing', () => api(`/api/admin/listings/${listing.id}`, 'PATCH', { status: 'rejected' })));
+    card.append(actions);
+    pendingListings.append(card);
+  }
+}
+
+function renderInquiries(items) {
+  newInquiries.replaceChildren();
+  if (!items.length) newInquiries.append(element('p', '', 'No new marketplace inquiries.'));
+  for (const inquiry of items) {
+    const card = element('article', 'trace-card', '');
+    card.append(element('h3', '', inquiry.listing_title));
+    card.append(element('p', 'trace-meta', `${inquiry.responder_kind} · ${inquiry.responder_name} · ${inquiry.created_at}`));
+    card.append(element('p', '', inquiry.message));
+    card.append(element('p', '', `Responder contact: ${inquiry.reply_contact}`));
+    card.append(element('p', '', `Listing owner contact: ${inquiry.listing_reply_contact}`));
+    const actions = element('div', 'review-actions', '');
+    actions.append(actionButton('Approve inquiry for owner', () => api(`/api/admin/inquiries/${inquiry.id}`, 'PATCH', { status: 'reviewed' })));
+    actions.append(actionButton('Reject inquiry', () => api(`/api/admin/inquiries/${inquiry.id}`, 'PATCH', { status: 'closed' })));
+    card.append(actions);
+    newInquiries.append(card);
+  }
+}
+
 async function loadQueue() {
-  const [traces, handoffs] = await Promise.all([
+  const [traces, listings, inquiries, handoffs] = await Promise.all([
     api('/api/admin/traces?status=pending'),
+    api('/api/admin/listings?status=pending'),
+    api('/api/admin/inquiries?status=new'),
     api('/api/admin/handoffs?status=new'),
   ]);
   renderTraces(traces.items);
+  renderListings(listings.items);
+  renderInquiries(inquiries.items);
   renderHandoffs(handoffs.items);
 }
 
