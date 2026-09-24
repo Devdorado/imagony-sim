@@ -6,16 +6,42 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Imagony Review</title>
   <link rel="stylesheet" href="/assets/site.css">
-  <script src="/assets/review.js" defer></script>
+  <link rel="stylesheet" href="/assets/review-desk.css">
+  <script src="/assets/review.js?v=human-desk-1" type="module"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true">◈</span> IMAGONY<span class="brand-dot">.</span></a><nav aria-label="Main navigation"><a href="/">Public site</a></nav></header>
   <main id="main" class="shell article-page">
     <p class="kicker">PRIVATE REVIEW</p><h1>Review queue.</h1>
-    <p class="lead">Enter the admin token to load pending traces and marketplace listings, plus private inquiries. The token stays in this page's memory and is never saved by the site.</p>
-    <form id="review-login" class="review-login"><label for="admin-token">Admin token</label><input id="admin-token" name="token" type="password" required autocomplete="off"><button class="button primary" type="submit">Load queue</button></form>
+    <p class="lead">Manage Human Desk requests, offers and payment records, and review marketplace submissions. Your token stays in this page's memory.</p>
+    <form id="review-login" class="review-login"><label for="admin-token">Admin token</label><input id="admin-token" name="token" type="password" required autocomplete="off"><button class="button primary" type="submit">Load queue</button><button id="review-logout" class="button secondary" type="button">Lock review</button></form>
     <p id="review-status" class="form-status" role="status" aria-live="polite"></p>
+    <section class="content-section desk-review" aria-labelledby="desk-heading">
+      <p class="kicker">PRIVATE SERVICE REQUESTS</p><h2 id="desk-heading">Human Desk</h2>
+      <p>Review authority and the proposed engagement before issuing an offer. Customers check their private request page; contact them manually when a response is needed.</p>
+      <form id="desk-filters" class="desk-filter-grid">
+        <label>Request status<select name="status"><option value="">All statuses</option><option value="new">Received</option><option value="reviewing">Under review</option><option value="needs_info">More information needed</option><option value="quoted">Offer issued</option><option value="accepted">Offer accepted</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="rejected">Declined</option><option value="withdrawn">Withdrawn</option></select></label>
+        <label>Payment status<select name="payment_status"><option value="">Any payment status</option><option value="none">No payment record</option><option value="link_ready">Payment requested</option><option value="confirmed">Receipt confirmed</option></select></label>
+        <button class="button secondary" type="submit">Filter requests</button>
+      </form>
+      <p id="desk-review-status" class="form-status" role="status" aria-live="polite"></p>
+      <div id="desk-request-list" class="desk-request-list"><p>Enter your admin token to load requests.</p></div>
+      <div class="review-actions"><button id="desk-previous" class="button secondary" type="button" hidden>Previous requests</button><button id="desk-next" class="button secondary" type="button" hidden>Next requests</button></div>
+      <section id="desk-case" class="desk-case" hidden aria-labelledby="desk-case-heading">
+        <div class="desk-case-title"><div><p class="kicker" id="desk-case-reference"></p><h3 id="desk-case-heading" tabindex="-1">Request details</h3></div><button id="desk-refresh-case" class="button secondary" type="button">Refresh request</button></div>
+        <div id="desk-case-summary"></div><div id="desk-case-report"></div>
+        <h4>Offers</h4><div id="desk-quotes"></div>
+        <h4>Payment record</h4><div id="desk-payment-summary"></div>
+        <h4>Request history</h4><div id="desk-events" class="desk-events"></div>
+        <div class="desk-admin-grid">
+          <form id="desk-message-form" class="desk-admin-card"><h4>Reply or add a note</h4><label>Visibility<select name="visibility"><option value="public">Visible to the requester</option><option value="internal">Internal reviewer note</option></select></label><label>Message<textarea name="body" minlength="5" maxlength="3000" rows="5" required></textarea></label><button class="button secondary" type="submit">Save message</button></form>
+          <form id="desk-state-form" class="desk-admin-card"><h4>Update the request</h4><label>Next status<select name="status" required></select></label><label>Completion report<textarea name="report" minlength="20" maxlength="3000" rows="5"></textarea></label><p class="desk-help">A completion report is required when finishing an accepted engagement. Payment due before work must be confirmed before starting.</p><button class="button secondary" type="submit">Update status</button></form>
+          <form id="desk-quote-form" class="desk-admin-card"><h4>Issue an individual offer</h4><label>Agreed service and scope<textarea name="scope" minlength="20" maxlength="3000" rows="5" required></textarea></label><div class="desk-pair"><label>Total amount<input name="amount" type="number" min="0.01" step="0.01" required></label><label>Currency<select name="currency"><option>CHF</option><option>EUR</option><option>USD</option></select></label></div><label>Payment due<select name="payment_due"><option value="before_work">Before work begins</option><option value="on_completion">On completion</option></select></label><label>Payment terms, taxes and conditions<textarea name="payment_terms" minlength="10" maxlength="1000" rows="3" required></textarea></label><label>Offer valid until (your local time)<input name="valid_until" type="datetime-local" required></label><p class="desk-help">The total must include all agreed charges. Published offers keep their version; an accepted offer cannot be overwritten.</p><button class="button primary" type="submit">Issue offer</button></form>
+          <form id="desk-payment-form" class="desk-admin-card"><h4>Payrexx payment</h4><p id="desk-payment-config" class="desk-help"></p><label>Action<select name="action"><option value="set_link">Attach a Payrexx payment link</option><option value="confirm_received">Confirm received payment manually</option></select></label><label>Payment link<input name="url" type="url" maxlength="1000" placeholder="https://your-account.payrexx.com/…"></label><label>Request reference<input name="reference" maxlength="80" required readonly></label><div class="desk-pair"><label>Offer total<input name="amount" type="number" min="0.01" step="0.01" required></label><label>Currency<select name="currency"><option>CHF</option><option>EUR</option><option>USD</option></select></label></div><label>Amount actually received<input name="received_amount" type="number" min="0.01" step="0.01"></label><label class="desk-check"><input name="verified" type="checkbox" required> I checked this reference, amount and currency against the accepted offer and the Payrexx record.</label><p class="desk-help">Only confirm receipt after checking the payment in Payrexx. Opening a link or returning from checkout is not proof of payment.</p><button class="button secondary" type="submit">Save payment record</button></form>
+        </div>
+      </section>
+    </section>
     <section class="content-section"><h2>Pending traces</h2><div id="pending-traces" class="trace-list"><p>Enter your token to load.</p></div></section>
     <section class="content-section"><h2>Pending marketplace listings</h2><p>Review claims, contact details and links before publishing. Approval checks content; it does not verify identity, authority or ability to pay.</p><div id="pending-listings" class="trace-list"><p>Enter your token to load.</p></div></section>
     <section class="content-section"><h2>New marketplace inquiries</h2><p>These messages and contacts are private. Approval releases the message and reply address to the listing owner; rejection keeps them hidden. Check for abuse and sensitive information before approval.</p><div id="new-inquiries" class="trace-list"><p>Enter your token to load.</p></div></section>

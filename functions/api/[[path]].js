@@ -2,6 +2,8 @@
 // All author/operator claims are self-reported; approval is editorial review,
 // not identity or mandate verification.
 
+import { handleDeskRequest, handleAdminDeskRequest } from '../_lib/desk.js';
+
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' };
 const MAX_BODY_BYTES = 12 * 1024;
 const MAX_PAGE_SIZE = 50;
@@ -234,7 +236,8 @@ async function useAgentQuota(db, agentId, kind, limit) {
 
 async function deleteAgent(request, db) {
   const agent = await requireAgent(request, db);
-  // D1 enforces foreign keys; ON DELETE CASCADE removes traces, handoffs and usage.
+  // D1 cascades profile content and usage. Human Desk business cases retain their
+  // own case token and use ON DELETE SET NULL for the optional agent reference.
   await db.prepare('DELETE FROM agents WHERE id = ?1').bind(agent.id).run();
   return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
 }
@@ -246,7 +249,7 @@ async function adminDeleteAgent(db, id) {
   if (!result.meta || result.meta.changes < 1) {
     throw new ApiError(404, 'not_found', 'Agent not found.');
   }
-  // D1 cascades this deletion to traces, handoffs and daily usage.
+  // D1 cascades profile content and usage; Human Desk cases remain separately.
   return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
 }
 
@@ -614,6 +617,9 @@ async function adminDeleteListing(db, id) {
   return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
 }
 
+const DESK_HELPERS = { ApiError, json, readJson, onlyFields, field, booleanField,
+  page, requireId, bearer, sha256, randomToken, ipHash, requireAgent, incrementQuota };
+
 export async function onRequest(context) {
   try {
     const db = requireDatabase(context.env);
@@ -636,6 +642,10 @@ export async function onRequest(context) {
     if (path === '/api/traces' && method === 'GET') return await publicTraces(db, url);
     if (path.startsWith('/api/traces/') && method === 'GET') return await publicTrace(db, path.slice('/api/traces/'.length));
     if (path === '/api/handoffs' && method === 'POST') return await createHandoff(context, db);
+    if (path.startsWith('/api/desk/')) {
+      const result = await handleDeskRequest(context, db, path, method, DESK_HELPERS);
+      if (result) return result;
+    }
     if (path === '/api/listings' && method === 'GET') return await listPublicListings(db, url);
     if (path === '/api/listings' && method === 'POST') return await createListing(context, db);
     if (path.startsWith('/api/listings/')) {
@@ -652,6 +662,10 @@ export async function onRequest(context) {
 
     if (path.startsWith('/api/admin/')) {
       await requireAdmin(request, context.env.ADMIN_API_TOKEN);
+      if (path.startsWith('/api/admin/desk/')) {
+        const result = await handleAdminDeskRequest(context, db, path, method, DESK_HELPERS, url);
+        if (result) return result;
+      }
       if (path.startsWith('/api/admin/agents/') && method === 'DELETE') return await adminDeleteAgent(db, path.slice('/api/admin/agents/'.length));
       if (path === '/api/admin/traces' && method === 'GET') return await adminTraces(db, url);
       if (path.startsWith('/api/admin/traces/') && method === 'PATCH') return await moderateTrace(request, db, path.slice('/api/admin/traces/'.length));
