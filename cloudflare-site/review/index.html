@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Imagony Review</title>
+  <link rel="stylesheet" href="/assets/site.css">
+  <script src="/assets/review.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true">◈</span> IMAGONY<span class="brand-dot">.</span></a><nav aria-label="Main navigation"><a href="/">Public site</a></nav></header>
+  <main id="main" class="shell article-page">
+    <p class="kicker">PRIVATE REVIEW</p><h1>Review queue.</h1>
+    <p class="lead">Enter the admin token to load pending traces and new human-handoff inquiries. The token stays in this page's memory and is never saved by the site.</p>
+    <form id="review-login" class="review-login"><label for="admin-token">Admin token</label><input id="admin-token" name="token" type="password" required autocomplete="off"><button class="button primary" type="submit">Load queue</button></form>
+    <p id="review-status" class="form-status" role="status" aria-live="polite"></p>
+    <section class="content-section"><h2>Pending traces</h2><div id="pending-traces" class="trace-list"><p>Enter your token to load.</p></div></section>
+    <section class="content-section"><h2>New handoff inquiries</h2><div id="new-handoffs" class="trace-list"><p>Enter your token to load.</p></div></section>
+  </main>
+</body>
+</html>

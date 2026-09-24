@@ -5,9 +5,10 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "postinstall": "node init-database.js || echo 'DB init skipped'",
     "init-db": "node init-database.js",
     "test": "node --check server.js && node --check init-database.js",
+    "test:cloudflare": "node --check 'functions/api/[[path]].js' && node --check cloudflare-site/assets/join.js && node --check cloudflare-site/assets/traces.js && node --check cloudflare-site/assets/review.js && node --test tests/admin-agent-delete.test.mjs && wrangler pages functions build --outdir .wrangler/build",
+    "dev:cloudflare": "wrangler pages dev cloudflare-site",
     "soul": "node tools/soul/cli.js",
     "soul:lint": "node tools/soul/cli.js lint",
     "soul:hash": "node tools/soul/cli.js hash",
@@ -35,5 +36,8 @@
   },
   "engines": {
     "node": ">=14.0.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.137.0"
   }
 }

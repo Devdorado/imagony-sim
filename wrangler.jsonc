@@ -1,0 +1,28 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "imagony",
+  "pages_build_output_dir": "./cloudflare-site",
+  "compatibility_date": "2026-09-24",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "imagony-preview",
+      "database_id": "9bbc1f10-78f2-44f5-9577-5c3841430c20",
+      "preview_database_id": "DB",
+      "migrations_dir": "./migrations"
+    }
+  ],
+  "env": {
+    "production": {
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "imagony-prod",
+          "database_id": "99f0d7cc-580c-4b56-b634-9083d232a593",
+          "preview_database_id": "DB",
+          "migrations_dir": "./migrations"
+        }
+      ]
+    }
+  }
+}
