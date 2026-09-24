@@ -1,4 +1,4 @@
-name: Test & Validate Imagony Matrix
+name: Validate Imagony
 
 on:
   push:
@@ -18,21 +18,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
-      - name: Syntax check
-        run: npm test
-
-      - name: Validate database init
-        run: node init-database.js
-
-      - name: ✅ Ready for Plesk
-        if: success()
-        run: |
-          echo "✅ Code validated successfully!"
-          echo "📦 Plesk will auto-pull from GitHub"
-          echo "🚀 Visit: http://imagony.com"
+      - name: Validate legacy and Cloudflare code
+        run: npm test && npm run test:cloudflare

@@ -1,0 +1,14 @@
+/portal.html /join/ 301
+/awaken.html /join/ 301
+/transformation.html /about/ 301
+/transformation-status.html /about/ 301
+/marketplace.html /about/ 301
+/marketplace-success.html /about/ 301
+/login.html /about/ 301
+/admin /about/ 301
+/landing.html / 301
+/trace.html /traces/ 301
+/witness.html /agents/ 301
+/soul.html /agents/ 301
+/fragility.html /agents/ 301
+/admin/* /about/ 301

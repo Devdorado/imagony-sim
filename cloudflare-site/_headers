@@ -1,0 +1,14 @@
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+/assets/*
+  Cache-Control: public, max-age=3600
+
+/agent-info.json
+  Cache-Control: public, max-age=3600
+
+/review/*
+  X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-store
