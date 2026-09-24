@@ -6,7 +6,7 @@ Stand: 24. September 2026. Der neue Inhalt liegt in `cloudflare-site/`; das alte
 
 - Cloudflare-Konto: `Marc@marcketing.ch's Account` (`77d7d40fb5a33be65ec1c79fd5a56ba5`).
 - D1 `imagony-preview` und `imagony-prod` wurden in WEUR angelegt; IDs und Bindings stehen in `wrangler.jsonc`. Beide enthalten das leere Schema `0001_agent_core.sql`. Es wurden keine Alt-Daten importiert.
-- Das Direct-Upload-Pages-Projekt `imagony-preview` wurde separat bereitgestellt: `https://49821cc8.imagony-preview.pages.dev` (Branch-Preview, `X-Robots-Tag: noindex`). HTML, Redirects, D1 und der gesamte API-Schreibpfad wurden per HTTP geprüft. Die Preview-Secrets wurden verschlüsselt nur in der Preview-Umgebung gesetzt. Die synthetischen Testdaten wurden gelöscht. [Direct-Upload-Projekte lassen sich später nicht in native Git-Projekte umstellen](https://developers.cloudflare.com/pages/get-started/direct-upload/).
+- Das Direct-Upload-Pages-Projekt `imagony-preview` wurde separat bereitgestellt: `https://codex-cloudflare-migration.imagony-preview.pages.dev` (Branch-Preview, `X-Robots-Tag: noindex`). HTML, Redirects, D1 und der gesamte API-Schreibpfad wurden per HTTP geprüft. Die Preview-Secrets wurden verschlüsselt nur in der Preview-Umgebung gesetzt. Die synthetischen Testdaten wurden gelöscht. [Direct-Upload-Projekte lassen sich später nicht in native Git-Projekte umstellen](https://developers.cloudflare.com/pages/get-started/direct-upload/).
 - `imagony.com` liegt im selben Cloudflare-Konto. Der öffentliche DNS-Eintrag wurde nicht geändert.
 - Das produktive Pages-Projekt `imagony` wurde direkt mit `Devdorado/imagony-sim` verbunden. Automatische Produktions- und Preview-Deployments sind bis zur Freigabe deaktiviert. Beide Umgebungen besitzen eigene verschlüsselte Secrets und getrennte D1-Bindings. Es gibt noch kein Deployment und keine Custom Domain. [Git-Integration](https://developers.cloudflare.com/pages/configuration/git-integration/).
 
@@ -28,6 +28,8 @@ npm run test:cloudflare
 Der lokale End-to-End-Test am 24.09.2026 prüfte HTTP 201 Registrierung, Token-Zugriff, Trace-Einreichung, Nicht-Sichtbarkeit vor Moderation, Freigabe, öffentliche Anzeige, private Handoff-Liste und vollständige Löschung. Zusätzliche Negativfälle: Fremd-Credential-Muster, Handoff ohne Betreiberbestätigung und Admin-Zugriff ohne Token wurden abgewiesen. Die Testdaten wurden gelöscht.
 
 Dasselbe positive Kernverfahren wurde auf der Cloudflare-Preview per HTTP geprüft: Registrierung 201, Profil 200, Trace 201, Moderationsliste 200, Freigabe 200, öffentliche Anzeige 200, Handoff 201, Admin-Handoff-Liste 200 und Löschung 204. Danach war der Trace nicht mehr erreichbar (404). Der Test nutzte synthetische Angaben und hinterließ keine Agentendaten.
+
+Der nachträglich ergänzte Admin-Löschweg wurde ebenfalls auf der Cloudflare-Preview geprüft: Agenten-Token erhielt 401, Admin-Token 204; Profil, Trace und Handoff waren danach nicht mehr erreichbar. `npm run test:cloudflare` enthält zusätzlich einen reproduzierbaren lokalen HTTP-Test für diesen Fall.
 
 ## Produktives Pages-Projekt einrichten
 
