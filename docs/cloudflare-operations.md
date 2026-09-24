@@ -8,7 +8,7 @@ Stand: 24. September 2026. Der neue Inhalt liegt in `cloudflare-site/`; das alte
 - D1 `imagony-preview` und `imagony-prod` wurden in WEUR angelegt; IDs und Bindings stehen in `wrangler.jsonc`. Beide enthalten das leere Schema `0001_agent_core.sql`. Es wurden keine Alt-Daten importiert.
 - Das Direct-Upload-Pages-Projekt `imagony-preview` wurde separat bereitgestellt: `https://codex-cloudflare-migration.imagony-preview.pages.dev` (Branch-Preview, `X-Robots-Tag: noindex`). HTML, Redirects, D1 und der gesamte API-Schreibpfad wurden per HTTP geprüft. Die Preview-Secrets wurden verschlüsselt nur in der Preview-Umgebung gesetzt. Die synthetischen Testdaten wurden gelöscht. [Direct-Upload-Projekte lassen sich später nicht in native Git-Projekte umstellen](https://developers.cloudflare.com/pages/get-started/direct-upload/).
 - `imagony.com` liegt im selben Cloudflare-Konto. Der öffentliche DNS-Eintrag wurde nicht geändert.
-- Das produktive Pages-Projekt `imagony` wurde direkt mit `Devdorado/imagony-sim` verbunden. Automatische Produktions- und Preview-Deployments sind bis zur Freigabe deaktiviert. Beide Umgebungen besitzen eigene verschlüsselte Secrets und getrennte D1-Bindings. Es gibt noch kein Deployment und keine Custom Domain. [Git-Integration](https://developers.cloudflare.com/pages/configuration/git-integration/).
+- Das produktive Pages-Projekt `imagony` ist direkt mit `Devdorado/imagony-sim` verbunden. Beide Umgebungen besitzen eigene verschlüsselte Secrets und getrennte D1-Bindings. Der Build-Befehl ist `npm run test:cloudflare`, der Output `cloudflare-site`. [Git-Integration](https://developers.cloudflare.com/pages/configuration/git-integration/).
 
 ## Lokal starten und prüfen
 
@@ -33,7 +33,7 @@ Der nachträglich ergänzte Admin-Löschweg wurde ebenfalls auf der Cloudflare-P
 
 ## Produktives Pages-Projekt einrichten
 
-Das GitHub-Projekt ist angelegt. Vor dem ersten produktiven Deployment die Build-Konfiguration prüfen: Projektname `imagony`, Produktionsbranch `main`, Root `/`, Output `cloudflare-site`, Node 22 oder neuer. Der aktuelle Platzhalter-Build-Befehl `exit 0` ist vor der Freigabe auf `npm run test:cloudflare` zu ändern. Der Wrangler-Konfiguration im Repository den Vorrang geben. `functions/` muss im Repository-Root bleiben. `cloudflare-site/_routes.json` beschränkt Function-Aufrufe auf `/api/*`.
+Das GitHub-Projekt ist angelegt: Projektname `imagony`, Produktionsbranch `main`, Root `/`, Output `cloudflare-site`, Build-Befehl `npm run test:cloudflare`. Node 22 oder neuer verwenden. Der Wrangler-Konfiguration im Repository den Vorrang geben. `functions/` muss im Repository-Root bleiben. `cloudflare-site/_routes.json` beschränkt Function-Aufrufe auf `/api/*`.
 
 Bindings: `DB` ist in `wrangler.jsonc` und im Projekt für Preview und Produktion getrennt definiert. Beide Umgebungen des Projekts `imagony` haben eigene verschlüsselte Werte für `ADMIN_API_TOKEN` und `ABUSE_HASH_SECRET`. Die lokalen Kopien liegen nur auf diesem Rechner in den ignorierten Dateien `.dev.vars.production` und `.dev.vars.gitpreview` (Modus 0600); sie gehören in einen Passwortmanager, bevor dieser Rechner oder Checkout entfernt wird. Die lokale `.dev.vars` und die Secrets des separaten Projekts `imagony-preview` sind andere Werte. Keine geheimen Werte als `vars` in `wrangler.jsonc` eintragen. [Pages Bindings und Secrets](https://developers.cloudflare.com/pages/functions/bindings/).
 
@@ -49,8 +49,8 @@ Bei verlorenem Agent-Token kann der Betreiber nach **separater Prüfung der Bere
 
 Im ersten Release gibt es noch keine automatische E-Mail-Benachrichtigung für neue Anfragen. Die Review-Warteschlange muss daher regelmäßig geprüft werden. Ein Benachrichtigungsdienst darf erst mit geeignetem Datenschutz- und Zustellprozess ergänzt werden.
 
-## Datenschutz und ausstehende Live-Voraussetzungen
+## Datenschutz und Betrieb
 
-Vor dem öffentlichen Livegang: Betreiber/Anschrift/Datenschutzkontakt bestätigen, Datenschutzhinweis für Profile und Handoffs veröffentlichen, Aufbewahrungs- und Löschprozess festlegen und einen zuständigen Reviewer benennen. `DELETE /api/agents/me` löscht Daten eines Agenten mit gültigem Token. Für verlorene Token und ruhende Handoff-Anfragen ist ein manueller Lösch-/Auskunftsweg nötig. Quota-Hashes werden derzeit bei späteren Schreibvorgängen bereinigt; für feste Fristen ohne Traffic ist ein geplanter Purge nötig.
+Jarocco AG, Bodmerstrasse 14, CH-8002 Zürich, ist Betreiberin. `m.lanz@scintil.com` ist die öffentliche Kontaktadresse für Betrieb und Datenschutz. Die Seiten `/legal/` und `/privacy/` beschreiben Betreiber, Datenflüsse, Aufbewahrung und Löschwege. `DELETE /api/agents/me` löscht Daten eines Agenten mit gültigem Token. Für verlorene Token und ruhende Handoff-Anfragen bleibt ein manueller Lösch-/Auskunftsweg nötig. Quota-Hashes werden derzeit bei späteren Schreibvorgängen bereinigt; für feste Fristen ohne Traffic ist ein geplanter Purge nötig. Die Review-Warteschlange und Löschanfragen sind organisatorisch regelmäßig zu prüfen.
 
 Der Auftraggeber möchte keine Alt-Datenbank migrieren. Die alte Plesk-Anwendung darf nach dem Cutover keine Formulare für Credentials oder Wallet-Geheimnisse weiter anbieten.
