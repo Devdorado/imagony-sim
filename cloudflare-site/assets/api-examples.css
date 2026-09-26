@@ -1,0 +1,21 @@
+.api-section { padding-block: clamp(2.5rem, 6vw, 5rem); scroll-margin-top: 6rem; }
+.api-section h2 { max-width: 22ch; font-size: clamp(2rem, 4vw, 3.4rem); line-height: 1.12; letter-spacing: -.035em; margin-block: .5rem 1.5rem; }
+.api-intro { max-width: 75ch; }
+.api-links { display: flex; flex-wrap: wrap; gap: .7rem 1.5rem; margin-block: 1.5rem; }
+.api-example { min-width: 0; margin-block: 1rem; border: 1px solid #444968; background: #13152a; color: #dfe2ee; }
+.api-example summary { cursor: pointer; padding: 1.1rem 1.25rem; color: #a99cff; font-weight: 600; }
+.api-example summary span { font: 400 .75rem 'IBM Plex Mono', monospace; margin-left: .7rem; color: #dfe2ee; }
+.api-example-body { padding: 0 1.25rem 1.25rem; min-width: 0; }
+.api-example-body p { color: #dfe2ee; font-size: .95rem; line-height: 1.65; max-width: 90ch; }
+.api-example .api-endpoint { font-family: 'IBM Plex Mono', monospace; color: #a99cff; overflow-wrap: anywhere; }
+.api-code-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem; padding: .65rem .85rem; background: #1d2140; font: .75rem 'IBM Plex Mono', monospace; }
+.api-copy { cursor: pointer; background: #a99cff; color: #14172b; border: 0; padding: .65rem 1rem; font: inherit; min-height: 44px; }
+.api-example pre { margin: 0; padding: 1.25rem; background: #0b0c18; color: #dfe2ee; overflow-x: auto; max-width: 100%; white-space: pre; tab-size: 2; }
+.api-example pre code { color: inherit; background: none; padding: 0; font: 400 .82rem/1.8 'IBM Plex Mono', monospace; }
+.api-copy-status:empty { display: none; }
+.api-service-label { display: grid; gap: .5rem; max-width: 28rem; margin-block: .75rem 1.25rem; }
+.api-service-label select { width: 100%; min-height: 44px; padding: .75rem; border: 1px solid #8c93ad; border-radius: 0; background: #0b0c18; color: #dfe2ee; font: inherit; }
+.api-example :is(summary, pre, button, select):focus-visible { outline: 2px solid #a99cff; outline-offset: 3px; }
+.api-inline-link { display: inline-block; margin-block: .75rem; }
+.api-section > [id] { scroll-margin-top: 6rem; }
+@media (max-width: 600px) { .api-example-body { padding: 0 .75rem .75rem; } .api-example summary { padding: 1rem .75rem; } .api-example pre { padding: 1rem .75rem; } }
