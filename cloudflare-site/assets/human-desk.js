@@ -223,6 +223,7 @@ function renderPayment(payment) {
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
         content.append(link, element('p', 'hd-field-help', `External payment page: ${url.hostname}`));
+        window.imagonyMotion?.enhanceButtons(content);
       }
     } catch { /* Never turn an invalid URL into a link. */ }
   }

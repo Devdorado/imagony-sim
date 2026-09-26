@@ -1,4 +1,4 @@
-import { createDeskReview } from './review-desk.js?v=1';
+import { createDeskReview } from './review-desk.js?v=design-v1';
 
 const login = document.getElementById('review-login');
 const reviewStatus = document.getElementById('review-status');
@@ -133,6 +133,7 @@ async function loadQueue() {
   renderListings(listings.items);
   renderInquiries(inquiries.items);
   renderHandoffs(handoffs.items);
+  window.imagonyMotion?.enhanceButtons(document.querySelector('main'));
 }
 
 login.addEventListener('submit', async (event) => {
