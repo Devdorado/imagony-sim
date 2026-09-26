@@ -54,6 +54,7 @@ export function createDeskReview(api) {
     }
     $('desk-previous').hidden = offset === 0;
     $('desk-next').hidden = !result.pagination.has_more;
+    window.imagonyMotion?.enhanceButtons(container);
   }
 
   async function open(id, focus = false) {

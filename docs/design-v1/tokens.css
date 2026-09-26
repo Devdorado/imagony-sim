@@ -1,0 +1,92 @@
+/* imagony Design Tokens v1 (26.09.2026)
+   Abgeleitet aus der navyra-Grammatik: Prisma statt Schleife, Fase statt Blatt.
+   Einbindung: ersetzt den :root-Block in cloudflare-site/assets/site.css.
+   Die alten Namen (--bg, --panel, …) bleiben als Aliase, damit human-desk.css
+   und marketplace.css ohne Bruch weiterlaufen; neue Regeln nutzen die neuen Namen. */
+
+:root {
+  color-scheme: dark;
+
+  /* Grund und Flächen (dunkel, Standard) */
+  --void: #0b0c18;        /* Seitengrund */
+  --void-deep: #07080f;   /* Footer */
+  --onyx: #13152a;        /* zweite Sektion, Ticker */
+  --slate: #1d2140;       /* Karten auf void/onyx */
+  --slate-2: #262c56;     /* Facetten, Hover-Flächen */
+
+  /* Text auf dunkel */
+  --haze: #dfe2ee;        /* Überschriften, starker Text (15.1:1 auf void) */
+  --haze-2: #b9bdd0;      /* Fliesstext (10.4:1 auf void, 8.4:1 auf slate) */
+  --steel: #8c93ad;       /* Nebentext, Mono-Etiketten (6.4:1 auf void, 5.1:1 auf slate) */
+
+  /* Akzent und Licht */
+  --iris: #a99cff;        /* EINZIGER Textakzent auf dunkel; Primärbutton-Fläche (void darauf: 8.2:1) */
+  --violet: #6d5ef0;      /* nur Licht: Prisma, Verläufe, Marker. Kein Text (3.6:1) */
+  --cobalt: #3d63f2;      /* nur Licht: Prisma, Verläufe, Marker. Kein Text (3.8:1) */
+
+  /* Helle Sektionen */
+  --fog: #eef0f6;         /* heller Sektionsgrund */
+  --paper: #ffffff;       /* Karten auf fog */
+  --ink: #14172b;         /* Text auf fog/paper (15.5:1 / 17.7:1) */
+  --ink-2: #4a4f68;       /* Nebentext auf fog/paper (7.1:1 / 8.1:1) */
+  --iris-deep: #5a48d9;   /* Akzent auf hell (5.5:1 auf fog, 6.2:1 auf paper) */
+  --fog-line: #c9ccda;
+
+  /* Linien */
+  --line: rgba(140, 147, 173, 0.28);
+  --line-soft: rgba(140, 147, 173, 0.18);
+  --edge: linear-gradient(135deg, rgba(169, 156, 255, 0.55), rgba(61, 99, 242, 0.12)); /* 1px Lichtkante an Karten */
+
+  /* Schrift */
+  --font-sans: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+  --stretch-display: 112%;  /* Thesen h1/h2 */
+  --stretch-title: 106%;    /* Kartentitel */
+  --stretch-brand: 125%;    /* Wortmarke */
+
+  /* Schriftstufen (Desktop-Obergrenzen, fluid) */
+  --fs-display: clamp(2.9rem, 5.9vw, 5.25rem);   /* 84px: Hero-These */
+  --fs-h2: clamp(2.25rem, 4.4vw, 4rem);          /* 64px: Sektionsthese */
+  --fs-h3: clamp(1.9rem, 3.3vw, 3rem);           /* 48px */
+  --fs-h4: clamp(1.4rem, 1.9vw, 1.625rem);       /* 26px: Kartentitel */
+  --fs-lead: clamp(1.06rem, 1.3vw, 1.25rem);     /* 20px */
+  --fs-body: 1rem;
+  --fs-small: 0.875rem;
+  --fs-label: 0.8125rem;                          /* 13px Mono-Eyebrow */
+  --fs-chip: 0.6875rem;                           /* 11px Mono-Chip */
+  --tracking-display: -0.025em;
+  --tracking-label: 0.14em;
+
+  /* Geometrie: Fasen statt Rundungen (oben rechts + unten links) */
+  --cut-xs: 10px;   /* Eingabefelder, kleine Buttons */
+  --cut-s: 14px;    /* Buttons */
+  --cut-m: 28px;    /* kleine Karten */
+  --cut-l: 40px;    /* Inhaltskarten */
+  --radius: 0;      /* keine border-radius im System */
+
+  /* Raster */
+  --shell: 1264px;
+  --gutter: clamp(20px, 6.1vw, 88px);
+  --section-y: clamp(72px, 9vw, 128px);
+
+  /* Bewegung */
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-in: cubic-bezier(0.55, 0, 0.8, 0.2);
+  --d-fold: 260ms;      /* Button faltet */
+  --d-tile: 360ms;      /* ein Dreieck der Überblendung */
+  --d-float: 9s;        /* Prisma schwebt */
+
+  /* Aliase für bestehende Styles (nicht in neuem Code verwenden) */
+  --bg: var(--void);
+  --panel: var(--slate);
+  --text: var(--haze);
+  --muted: var(--steel);
+  --teal: var(--iris);
+}
+
+/* Utility: die imagony-Fase. Auf Elementen mit Rahmen die 1px-Kante über
+   einen Wrapper mit background: var(--edge) und padding: 1px lösen,
+   da clip-path normale Borders abschneidet. */
+.cut-s { clip-path: polygon(0 0, calc(100% - var(--cut-s)) 0, 100% var(--cut-s), 100% 100%, var(--cut-s) 100%, 0 calc(100% - var(--cut-s))); }
+.cut-m { clip-path: polygon(0 0, calc(100% - var(--cut-m)) 0, 100% var(--cut-m), 100% 100%, var(--cut-m) 100%, 0 calc(100% - var(--cut-m))); }
+.cut-l { clip-path: polygon(0 0, calc(100% - var(--cut-l)) 0, 100% var(--cut-l), 100% 100%, var(--cut-l) 100%, 0 calc(100% - var(--cut-l))); }

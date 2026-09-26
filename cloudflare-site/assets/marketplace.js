@@ -150,6 +150,7 @@ async function loadDetail(id) {
     content.replaceChildren(tags, title, node('p', 'market-detail-summary', item.summary), facts, note);
     setupInquiry(item.target_kind);
     $('inquiry-section').hidden = false;
+    window.imagonyMotion?.enhanceButtons($('listing-detail'));
   } catch (error) {
     const heading = node('h2', '', 'Listing unavailable');
     heading.id = 'detail-title';

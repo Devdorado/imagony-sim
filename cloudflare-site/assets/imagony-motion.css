@@ -1,0 +1,156 @@
+/* imagony Motion + Polygon-Komponenten v1
+   Ablage: cloudflare-site/assets/imagony-motion.css, nach site.css einbinden.
+   Ohne JavaScript bleiben alle Elemente vollständig und bedienbar (flache Flächen statt Facetten). */
+
+/* ---------- Polygon-Buttons ---------- */
+.button,
+.nav-cta {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  overflow: hidden;
+  border: 0;
+  text-decoration: none;
+  cursor: pointer;
+  font: 600 0.9375rem/1 var(--font-sans);
+  clip-path: polygon(0 0, calc(100% - var(--cut-s)) 0, 100% var(--cut-s), 100% 100%, var(--cut-s) 100%, 0 calc(100% - var(--cut-s)));
+}
+.button { min-height: 54px; padding: 0 1.625rem; }
+.nav-cta { min-height: 44px; padding: 0 1.25rem; font-size: 0.875rem; clip-path: polygon(0 0, calc(100% - var(--cut-xs)) 0, 100% var(--cut-xs), 100% 100%, var(--cut-xs) 100%, 0 calc(100% - var(--cut-xs))); }
+.button:hover { transform: none; }
+
+/* Flache Rückfallflächen (vor dem Enhancement und ohne JS) */
+.button.primary { background: var(--iris); color: var(--void); }
+.button.secondary, .nav-cta { background: var(--slate); color: var(--haze); }
+
+.button .facets,
+.nav-cta .facets {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.button-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+.facets polygon {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  transition: transform var(--d-fold) var(--ease-in), opacity var(--d-fold) ease-in, filter 160ms ease;
+}
+.button:hover .facets polygon,
+.nav-cta:hover .facets polygon { filter: brightness(1.1); }
+.button.secondary .facets polygon,
+.nav-cta .facets polygon {
+  stroke: var(--iris);
+  stroke-opacity: 0.2;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.is-folding .facets polygon { transform: scale(0.05) rotate(100deg); opacity: 0; }
+.is-folding .button-label { opacity: 0; transform: scale(0.92); }
+
+/* Fokus: clip-path schneidet outline ab, daher Innenrahmen über ::after */
+.button:focus-visible,
+.nav-cta:focus-visible { outline: none; }
+.button:focus-visible::after,
+.nav-cta:focus-visible::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 2px solid currentColor;
+  pointer-events: none;
+}
+
+/* ---------- Prisma (Hero-Motiv) ---------- */
+.prism {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: none;           /* nur die Facetten sind klickbar */
+}
+.prism svg { display: block; width: 100%; height: auto; overflow: visible; }
+.prism:not([data-prism-ready]) { aspect-ratio: 760 / 720; background: url('/assets/prism.svg') center / contain no-repeat; }
+.prism polygon {
+  pointer-events: auto;
+  cursor: pointer;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  transition: filter 160ms ease;
+}
+.prism polygon:hover { filter: brightness(1.18); }
+.prism polygon.is-folding { animation: imagony-facet-fold 920ms cubic-bezier(0.6, 0, 0.3, 1) both; }
+.prism-float { animation: imagony-prism-float var(--d-float) ease-in-out infinite; }
+
+@keyframes imagony-prism-float {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  50% { transform: translate(-8px, -16px) rotate(-1.4deg); }
+}
+@keyframes imagony-facet-fold {
+  0% { transform: none; }
+  38% { transform: scale(0.06) rotate(140deg); opacity: 0.15; }
+  58% { transform: scale(0.06) rotate(140deg); opacity: 0.15; }
+  88% { transform: none; opacity: 1; filter: brightness(1.45); }
+  100% { transform: none; opacity: 1; filter: none; }
+}
+
+/* ---------- Seitenwechsel: Dreiecke decken zu und entfalten die neue Seite ---------- */
+.fold-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1000;
+  pointer-events: all;
+}
+.fold-overlay polygon {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  stroke: var(--iris);
+  stroke-opacity: 0.14;
+  stroke-width: 1;
+}
+.fold-overlay.is-covering polygon { animation: imagony-tile-in var(--d-tile) var(--ease-out) both; }
+.fold-overlay.is-revealing polygon { animation: imagony-tile-out 380ms cubic-bezier(0.6, 0, 0.8, 0.3) both; }
+
+@keyframes imagony-tile-in {
+  from { transform: scale(0) rotate(-90deg); opacity: 0; }
+  to { transform: scale(1.04) rotate(0deg); opacity: 1; }
+}
+@keyframes imagony-tile-out {
+  from { transform: scale(1.04) rotate(0deg); opacity: 1; }
+  to { transform: scale(0) rotate(90deg); opacity: 0; }
+}
+
+/* Neue Seite startet verdeckt, bis das Skript die Dreiecke übernimmt.
+   Sicherung: nach 1.6 s verschwindet die Decke auch ohne Skript. */
+html.fold-pending::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: var(--void);
+  animation: imagony-fold-safety 0s linear 1.6s forwards;
+}
+@keyframes imagony-fold-safety { to { visibility: hidden; } }
+
+/* ---------- Reduzierte Bewegung ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .prism-float,
+  .prism polygon.is-folding,
+  .fold-overlay polygon { animation: none !important; }
+  .facets polygon,
+  .button-label { transition: none !important; }
+  .button, .nav-cta, .prism polygon { transition: none !important; }
+  .fold-overlay { display: none; }
+  html.fold-pending::after { display: none; }
+}
