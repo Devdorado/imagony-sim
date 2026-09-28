@@ -1,0 +1,26 @@
+services:
+  web:
+    image: node:22
+    working_dir: /app
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    env_file:
+      - /run/base44/app.env
+    ports:
+      - "3000:8788"
+    command: >
+      sh -c "npm ci --ignore-scripts &&
+      yes | npx wrangler d1 migrations apply imagony-preview --local &&
+      exec npx wrangler pages dev cloudflare-site --ip 0.0.0.0 --port 8788
+      --binding ADMIN_API_TOKEN=$$ADMIN_API_TOKEN --binding ABUSE_HASH_SECRET=$$ABUSE_HASH_SECRET"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -m 5 http://localhost:8788/ >/dev/null && curl -sS -m 5 -o /dev/null http://localhost:8788/api/ || exit 1"]
+      interval: 15s
+      timeout: 6s
+      retries: 3
+      start_period: 180s
+    restart: on-failure
+
+volumes:
+  node_modules:

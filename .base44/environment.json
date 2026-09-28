@@ -1,0 +1,5 @@
+{"previewPort": 3000, "healthPath": "/", "startCommand": "docker compose -f docker-compose.base44.yml up -d",
+ "secrets": [
+  {"name": "ADMIN_API_TOKEN", "description": "Random >=32 char token for admin API endpoints (local dev)", "requiredAtBoot": true, "generatedForDevelopment": true},
+  {"name": "ABUSE_HASH_SECRET", "description": "Random >=32 char secret for IP hashing (local dev)", "requiredAtBoot": true, "generatedForDevelopment": true}
+ ]}
